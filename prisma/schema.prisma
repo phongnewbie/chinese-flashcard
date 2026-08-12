@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id               String    @id @default(cuid())
+  name             String?
+  email            String    @unique
+  emailVerified    DateTime?
+  image            String?
+  trialStartedAt   DateTime?
+  isPremium        Boolean   @default(false)
+  canStudy         Boolean   @default(false)
+  canEditContent   Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  accounts         Account[]
+  sessions         Session[]
+  devices          Device[]
+  cardReviews      CardReview[]
+  reviewLogs       ReviewLog[]
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+model Device {
+  id         String   @id @default(cuid())
+  userId     String
+  deviceKey  String
+  label      String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceKey])
+}
+
+model AppSetting {
+  id             String @id @default("default")
+  trialMinutes   Int    @default(30)
+  maxDevices     Int    @default(2)
+  maxNewPerDay   Int    @default(20)
+  learningSteps  String @default("1,10")
+  zaloUrl        String @default("https://zalo.me/")
+  lockMessage    String @default("Thời gian học thử đã hết. Vui lòng liên hệ qua Zalo để mở khóa và tham gia khóa học trên Zoom.")
+}
+
+model Course {
+  id            String      @id @default(cuid())
+  title         String
+  description   String?
+  published     Boolean     @default(true)
+  sortOrder     Int         @default(0)
+  frontTemplate String?
+  backTemplate  String?
+  cardCss       String?
+  fieldDefs     String?
+  cardTypes     String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  cards         Flashcard[]
+}
+
+model Flashcard {
+  id        String       @id @default(cuid())
+  courseId  String
+  section   String       @default("vocabulary")
+  front     String
+  back      String
+  pinyin      String?
+  audioUrl    String?
+  extraFields String?
+  sortOrder   Int          @default(0)
+  flag        Int          @default(0)
+  subdeck     String?
+  course    Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  reviews   CardReview[]
+
+  @@index([courseId, section])
+}
+
+model CardReview {
+  id           String    @id @default(cuid())
+  userId       String
+  cardId       String
+  cardType     String    @default("default")
+  ease         Float     @default(2.5)
+  intervalDays Int       @default(0)
+  repetitions  Int       @default(0)
+  learningStep Int       @default(0)
+  dueAt        DateTime  @default(now())
+  lastReviewAt DateTime?
+  suspended    Boolean   @default(false)
+  buriedUntil  DateTime?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card         Flashcard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cardId, cardType])
+  @@index([userId, dueAt])
+}
+
+model ReviewLog {
+  id         String   @id @default(cuid())
+  userId     String
+  cardId     String
+  cardType   String   @default("default")
+  rating     Int
+  reviewedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, reviewedAt])
+}

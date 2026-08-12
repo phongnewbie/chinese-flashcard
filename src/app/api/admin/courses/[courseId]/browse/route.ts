@@ -1,0 +1,121 @@
+import { requireAdmin } from "@/lib/api-auth";
+import { parseAnkiSearch } from "@/lib/anki-search";
+import { cardTypeCount } from "@/lib/card-types";
+import { parseExtraFields } from "@/lib/fields";
+import { sectionLabel, type StudySectionId } from "@/lib/sections";
+import { cardMatchesDeckFilter, cardMatchesTag } from "@/lib/study-queue";
+import { prisma } from "@/lib/db";
+import { NextResponse } from "next/server";
+import type { Prisma } from "@/generated/prisma/client";
+
+type RouteContext = { params: Promise<{ courseId: string }> };
+
+export async function GET(req: Request, context: RouteContext) {
+  const { error } = await requireAdmin();
+  if (error) return error;
+
+  const { courseId } = await context.params;
+  const url = new URL(req.url);
+  const section = url.searchParams.get("section")?.trim() ?? "";
+  const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") ?? 200)));
+  const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0));
+  const cardState = url.searchParams.get("state") ?? "";
+  const searchRaw = url.searchParams.get("q")?.trim() ?? "";
+
+  const parsed = parseAnkiSearch(searchRaw);
+  const course = await prisma.course.findUnique({ where: { id: courseId } });
+  if (!course) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const where: Prisma.FlashcardWhereInput = { courseId };
+  if (section) where.section = section;
+  if (parsed.flag !== null) where.flag = parsed.flag;
+  if (parsed.text) {
+    where.OR = [
+      { front: { contains: parsed.text } },
+      { back: { contains: parsed.text } },
+      { pinyin: { contains: parsed.text } },
+      { extraFields: { contains: parsed.text } },
+      { subdeck: { contains: parsed.text } },
+    ];
+  }
+
+  let cards = await prisma.flashcard.findMany({
+    where,
+    orderBy: [{ sortOrder: "asc" }, { front: "asc" }],
+  });
+
+  if (parsed.deck) {
+    cards = cards.filter((c) =>
+      cardMatchesDeckFilter(c, sectionLabel(c.section as StudySectionId), parsed.deck),
+    );
+  }
+  if (parsed.tag) {
+    cards = cards.filter((c) => cardMatchesTag(c, parsed.tag));
+  }
+
+  const cardIds = cards.map((c) => c.id);
+  const allReviews = cardIds.length
+    ? await prisma.cardReview.findMany({ where: { cardId: { in: cardIds } } })
+    : [];
+
+  const reviewByCard = new Map<string, typeof allReviews>();
+  for (const r of allReviews) {
+    const list = reviewByCard.get(r.cardId) ?? [];
+    list.push(r);
+    reviewByCard.set(r.cardId, list);
+  }
+
+  if (parsed.isSuspended) {
+    cards = cards.filter((c) => reviewByCard.get(c.id)?.some((r) => r.suspended));
+  }
+  if (parsed.isNew) {
+    cards = cards.filter((c) => !reviewByCard.has(c.id) || reviewByCard.get(c.id)!.length === 0);
+  }
+  if (parsed.isLearning) {
+    cards = cards.filter((c) =>
+      reviewByCard.get(c.id)?.some((r) => !r.suspended && r.intervalDays === 0),
+    );
+  }
+  if (parsed.isReview) {
+    cards = cards.filter((c) =>
+      reviewByCard.get(c.id)?.some((r) => !r.suspended && r.intervalDays > 0),
+    );
+  }
+  if (cardState === "suspended") {
+    cards = cards.filter((c) => reviewByCard.get(c.id)?.some((r) => r.suspended));
+  }
+  if (cardState === "new") {
+    cards = cards.filter((c) => !reviewByCard.has(c.id) || reviewByCard.get(c.id)!.length === 0);
+  }
+  if (cardState === "learning") {
+    cards = cards.filter((c) =>
+      reviewByCard.get(c.id)?.some((r) => !r.suspended && r.intervalDays === 0),
+    );
+  }
+  if (cardState === "review") {
+    cards = cards.filter((c) =>
+      reviewByCard.get(c.id)?.some((r) => !r.suspended && r.intervalDays > 0),
+    );
+  }
+
+  const total = cards.length;
+  const page = cards.slice(offset, offset + limit);
+
+  const bySection = await prisma.flashcard.groupBy({
+    by: ["section"],
+    where: { courseId },
+    _count: { id: true },
+  });
+
+  const cardsWithMeta = page.map((c) => ({
+    ...c,
+    cardCount: cardTypeCount(c.section, course.cardTypes),
+    tags: parseExtraFields(c.extraFields).Tags ?? "",
+  }));
+
+  return NextResponse.json({
+    cards: cardsWithMeta,
+    total,
+    bySection: Object.fromEntries(bySection.map((r) => [r.section, r._count.id])),
+  });
+}

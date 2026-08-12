@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,21 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# database
+dev.db
+dev.db-journal
+
+# uploaded audio/images (local dev only)
+public/uploads/audio/*
+!public/uploads/audio/.gitkeep
+public/uploads/images/*
+!public/uploads/images/.gitkeep
+
+# agent/editor tooling (not part of app)
+.agents/
+.claude/
+.windsurf/
+skills-lock.json

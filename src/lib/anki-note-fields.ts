@@ -1,0 +1,197 @@
+import { parseExtraFields, parseFieldDefs, stringifyExtraFields } from "@/lib/fields";
+import { getFieldStyle, resolveFieldDefEntries, resolveFieldNames } from "@/lib/field-defs";
+
+/** Thứ tự field mặc định — TỪ VỰNG HSK (9 CẤP) */
+export const DEFAULT_NOTE_TYPE_FIELDS = [
+  "CHỮ HÁN",
+  "PINYIN",
+  "HÁN VIỆT",
+  "NGHĨA",
+  "VÍ DỤ",
+  "ẢNH",
+  "GHI CHÚ",
+  "CÁCH NHỚ",
+  "CẤP ĐỘ",
+  "ÂM THANH",
+] as const;
+
+/** @deprecated use DEFAULT_NOTE_TYPE_FIELDS */
+export const ANKI_HSK_FIELD_ORDER = [...DEFAULT_NOTE_TYPE_FIELDS];
+
+export const REQUIRED_NOTE_FIELDS = new Set(["CHỮ HÁN", "NGHĨA"]);
+
+const MULTILINE_LABELS = new Set(["NGHĨA", "VÍ DỤ", "GHI CHÚ", "CÁCH NHỚ", "CÁCH VIẾT"]);
+const IMAGE_LABELS = new Set(["ẢNH", "Hình ảnh", "Image"]);
+
+/** Danh sách field của note type — dùng default nếu chưa lưu */
+export function resolveFieldDefs(raw: string | null | undefined): string[] {
+  return resolveFieldNames(raw);
+}
+
+export type NoteFieldRow = {
+  key: string;
+  label: string;
+  value: string;
+  multiline: boolean;
+  isImage?: boolean;
+  fontFamily?: string;
+  fontSize?: number;
+  placeholder?: string;
+  rtl?: boolean;
+};
+
+export type FlashcardRecord = {
+  id: string;
+  section: string;
+  front: string;
+  back: string;
+  pinyin: string | null;
+  audioUrl: string | null;
+  extraFields: string | null;
+  sortOrder: number;
+  flag?: number;
+  subdeck?: string | null;
+  cardCount?: number;
+  tags?: string;
+};
+
+const CORE_MAP: Record<string, { key: string; multiline?: boolean }> = {
+  "CHỮ HÁN": { key: "front" },
+  PINYIN: { key: "pinyin" },
+  NGHĨA: { key: "back", multiline: true },
+  "ÂM THANH": { key: "audioUrl" },
+};
+
+export function buildNoteFieldRows(
+  card: FlashcardRecord,
+  fieldDefsInput: string[] | string | null | undefined,
+): NoteFieldRow[] {
+  const extras = parseExtraFields(card.extraFields);
+  const entries = typeof fieldDefsInput === "string" || fieldDefsInput == null
+    ? resolveFieldDefEntries(fieldDefsInput)
+    : resolveFieldDefEntries(
+        fieldDefsInput.length ? JSON.stringify(fieldDefsInput.map((name) => ({ name }))) : null,
+      );
+  const defs = fieldDefsInput && Array.isArray(fieldDefsInput)
+    ? fieldDefsInput
+    : entries.map((e) => e.name);
+  const seen = new Set<string>();
+  const rows: NoteFieldRow[] = [];
+
+  for (const label of defs) {
+    if (seen.has(label) || label === "Tags") continue;
+    seen.add(label);
+    const style = getFieldStyle(entries, label);
+    rows.push({
+      ...fieldRowForLabel(card, extras, label),
+      fontFamily: style.fontFamily,
+      fontSize: style.fontSize,
+      placeholder: style.description || undefined,
+      rtl: style.rtl,
+    });
+  }
+
+  for (const label of Object.keys(extras)) {
+    if (seen.has(label) || label === "Tags" || label === "tags") continue;
+    seen.add(label);
+    const style = getFieldStyle(entries, label);
+    rows.push({
+      ...fieldRowForLabel(card, extras, label),
+      fontFamily: style.fontFamily,
+      fontSize: style.fontSize,
+      placeholder: style.description || undefined,
+      rtl: style.rtl,
+    });
+  }
+
+  return rows;
+}
+
+function fieldRowForLabel(
+  card: FlashcardRecord,
+  extras: Record<string, string>,
+  label: string,
+): NoteFieldRow {
+  const core = CORE_MAP[label];
+  if (core) {
+    const value =
+      core.key === "front"
+        ? card.front
+        : core.key === "back"
+          ? card.back
+          : core.key === "pinyin"
+            ? card.pinyin ?? ""
+            : card.audioUrl
+              ? `[sound:${card.audioUrl.replace(/^.*\//, "")}]`
+              : "";
+    return {
+      key: core.key,
+      label,
+      value,
+      multiline: !!core.multiline,
+    };
+  }
+
+  return {
+    key: `extra:${label}`,
+    label,
+    value: extras[label] ?? "",
+    multiline: MULTILINE_LABELS.has(label),
+    isImage: IMAGE_LABELS.has(label),
+  };
+}
+
+export function noteFieldsToCardPayload(
+  section: string,
+  fields: NoteFieldRow[],
+): {
+  section: string;
+  front: string;
+  back: string;
+  pinyin: string | null;
+  audioUrl: string | null;
+  extraFields: string | null;
+} {
+  const get = (key: string) => fields.find((f) => f.key === key)?.value.trim() ?? "";
+  const getLabel = (label: string) =>
+    fields.find((f) => f.label === label)?.value.trim() ?? "";
+
+  const extras: Record<string, string> = {};
+  for (const f of fields) {
+    if (f.key.startsWith("extra:") && f.value.trim()) {
+      extras[f.label] = f.value.trim();
+    }
+  }
+
+  let audio = get("audioUrl");
+  if (audio.startsWith("[sound:")) {
+    audio = audio.replace(/^\[sound:([^\]]+)\]$/, "$1");
+  }
+  const hanViet = getLabel("HÁN VIỆT");
+  const soundInHanViet = hanViet.match(/\[sound:([^\]]+)\]/);
+  if (!audio && soundInHanViet) audio = soundInHanViet[1];
+
+  return {
+    section,
+    front: get("front") || getLabel("CHỮ HÁN"),
+    back: get("back") || getLabel("NGHĨA"),
+    pinyin: get("pinyin") || getLabel("PINYIN") || null,
+    audioUrl: audio || null,
+    extraFields: stringifyExtraFields(extras),
+  };
+}
+
+export function noteTypeLabel(section: string): string {
+  const map: Record<string, string> = {
+    vocabulary: "TỪ VỰNG HSK (9 CẤP)",
+    grammar: "NGỮ PHÁP",
+    sentence_order: "SẮP XẾP CÂU",
+    common: "THÔNG DỤNG",
+  };
+  return map[section] ?? section;
+}
+
+export function getTags(card: FlashcardRecord): string {
+  const extras = parseExtraFields(card.extraFields);
+  return extras.Tags ?? extras.tags ?? "";
+}

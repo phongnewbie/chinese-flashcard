@@ -1,0 +1,19 @@
+# === NOTEPAD — nhiều cách viết ===
+# Cách 1: phần | câu hỏi | đáp án | phiên âm | file mp3
+tu_vung|你好|Xin chào|nǐ hǎo
+ngu_phap|了 + V|Hậu tố hoàn thành
+
+# Cách 2: khối theo phần
+[tu_vung]
+谢谢|Cảm ơn|xièxie
+学生|Học sinh|xuésheng
+
+[sap_xep_cau]
+学生|我|是	我是学生
+
+# Cách 3: câu hỏi / đáp án rõ ràng
+Câu hỏi: 你好吗？ Đáp án: Bạn khỏe không?
+
+[thong_dung]
+请问|Xin hỏi|qǐngwèn
+没关系|Không sao|méi guānxi

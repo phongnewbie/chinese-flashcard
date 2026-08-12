@@ -1,0 +1,40 @@
+# Render Blueprint — Flashcard app
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: chinese-flashcard
+    runtime: node
+    region: singapore
+    plan: starter
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    disk:
+      name: flashcard-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      - key: DATABASE_URL
+        value: file:/var/data/app.db
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: AUTH_TRUST_HOST
+        value: "true"
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: AUTH_URL
+        sync: false
+      - key: AUTH_GOOGLE_ID
+        sync: false
+      - key: AUTH_GOOGLE_SECRET
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
