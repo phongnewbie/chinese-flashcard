@@ -21,14 +21,14 @@ Repo đã có file `render.yaml`. Nếu chưa có remote:
 ```bash
 git add .
 git commit -m "Prepare Render deployment"
-git push -u origin main
+git push -u origin master
 ```
 
 ## Bước 3 — Tạo service trên Render
 
 1. Đăng nhập [render.com](https://render.com)
 2. **New +** → **Blueprint**
-3. Kết nối repo GitHub `chinese-flashcard` (hoặc tên repo của bạn)
+Repo GitHub: **https://github.com/phongnewbie/chinese-flashcard**
 4. Render đọc `render.yaml` và tạo web service + disk
 
 ## Bước 4 — Biến môi trường (Render Dashboard)
@@ -56,7 +56,7 @@ Vào service → **Environment** → điền:
 ## Lưu ý
 
 - **Free tier Render** không có persistent disk → dữ liệu mất khi redeploy. Dùng **Starter + disk** như `render.yaml`.
-- Lần deploy đầu chạy `prisma migrate deploy` tạo bảng DB trên disk.
+- Lần deploy đầu chạy `prisma migrate deploy` **khi khởi động** (trên ổ cứng persistent), không phải lúc build.
 - Upload ảnh/audio lưu tại `/var/data/uploads` (persistent).
 - Nếu đổi domain: cập nhật `AUTH_URL` + redirect URI Google.
 
