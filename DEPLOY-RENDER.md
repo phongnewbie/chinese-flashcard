@@ -43,9 +43,21 @@ Vào service → **Environment** → điền:
 | `ADMIN_EMAILS` | email Google của bạn |
 | `AUTH_SECRET` | Render tự generate (hoặc dán chuỗi random) |
 
-`DATABASE_URL`, `DATA_DIR`, `UPLOAD_DIR` đã có trong `render.yaml`.
+**Start Command** (Render Dashboard):
 
-**Save** → Render build & deploy (~5–10 phút).
+```bash
+bash scripts/render-start.sh
+```
+
+Script tự dùng `/var/data` nếu có disk; không có disk thì fallback `./data` (free tier — data có thể mất khi redeploy).
+
+### Disk (khuyến nghị cho khách xài)
+
+Vào service → **Disks** → **Add Disk**:
+- **Mount Path:** `/var/data` (phải khớp `DATA_DIR`)
+- **Size:** 1 GB
+
+Không thêm disk → app vẫn **chạy được** nhưng database/upload lưu tạm, mất khi redeploy.
 
 ## Bước 5 — Kiểm tra
 
