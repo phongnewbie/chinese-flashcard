@@ -7,7 +7,7 @@ services:
     runtime: node
     region: singapore
     plan: starter
-    buildCommand: npm install && npx prisma generate && npm run build
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build
     startCommand: mkdir -p /var/data/uploads/images /var/data/uploads/audio && npx prisma migrate deploy && npm start
     healthCheckPath: /api/health
     autoDeploy: true

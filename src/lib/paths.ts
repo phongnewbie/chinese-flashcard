@@ -12,7 +12,7 @@ export function getSqliteFilePath(): string {
   if (url.startsWith("file:")) {
     const relative = url.replace(/^file:/, "").replace(/^\.\//, "");
     if (path.isAbsolute(relative)) return relative;
-    return path.join(process.cwd(), relative);
+    return path.join(/* turbopackIgnore: true */ process.cwd(), relative);
   }
   return path.join(getDataDir(), "app.db");
 }

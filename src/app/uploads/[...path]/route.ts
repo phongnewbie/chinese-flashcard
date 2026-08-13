@@ -28,7 +28,7 @@ export async function GET(_req: Request, context: RouteContext) {
   const roots = [getImageUploadDir(), getAudioUploadDir(), path.join(process.cwd(), "public", "uploads")];
 
   for (const root of roots) {
-    const filePath = path.join(root, ...segments);
+    const filePath = path.join(/* turbopackIgnore: true */ root, ...segments);
     if (!filePath.startsWith(root)) continue;
     try {
       const data = await readFile(filePath);
