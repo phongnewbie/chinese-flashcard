@@ -74,6 +74,13 @@ export function AdminPanel() {
       setNewTitle("");
       reload();
       setMsg("Đã tạo khóa học");
+    } else {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setMsg(
+        res.status === 403
+          ? "Không có quyền admin — kiểm tra ADMIN_EMAILS trên Render"
+          : data.error ?? `Lỗi tạo khóa học (${res.status})`,
+      );
     }
   };
 
