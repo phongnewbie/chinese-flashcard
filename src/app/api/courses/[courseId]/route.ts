@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { getAccessStatus } from "@/lib/access";
+import { canAccessCourse } from "@/lib/hsk-enrollment";
 import { prisma } from "@/lib/db";
 import { STUDY_SECTIONS, type StudySectionId } from "@/lib/sections";
 import { NextResponse } from "next/server";
@@ -30,6 +31,12 @@ export async function GET(_req: Request, context: RouteContext) {
   }
 
   const { courseId } = await context.params;
+
+  const allowed = await canAccessCourse(session.user.id, session.user.email, courseId);
+  if (!allowed) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const course = await prisma.course.findFirst({
     where: { id: courseId, published: true },
     include: {

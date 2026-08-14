@@ -7,7 +7,7 @@ import { LoginSocialButtons } from "./login-social-buttons";
 
 type Mode = "login" | "register";
 
-const REMEMBER_KEY = "hanki_remember_email";
+const REMEMBER_KEY = "onhsk_remember_email";
 
 export function LoginCard({ facebookEnabled }: { facebookEnabled: boolean }) {
   const router = useRouter();

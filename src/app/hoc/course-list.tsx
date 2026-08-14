@@ -30,7 +30,7 @@ export function StudentCourseList({
   if (courses.length === 0) {
     return (
       <p className="text-stone-500 text-sm rounded-xl border border-dashed border-stone-200 p-8 text-center">
-        Chưa có khóa học. Giáo viên sẽ đăng nội dung sớm.
+        Chưa có bài học. Admin cần thêm email của bạn vào cấp HSK và tạo bài trên bảng quản trị.
       </p>
     );
   }

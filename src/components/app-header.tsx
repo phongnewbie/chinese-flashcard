@@ -10,7 +10,7 @@ export async function AppHeader() {
     <header className="border-b border-stone-200 bg-white/80 backdrop-blur sticky top-0 z-10">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
         <Link href="/" className="font-semibold text-stone-900 tracking-tight">
-          中文 Flashcard
+          ÔN HSK
         </Link>
         <nav className="flex items-center gap-3 text-sm">
           {session ? (

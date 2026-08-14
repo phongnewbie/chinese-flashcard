@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { prisma } from "@/lib/db";
+import { listCoursesForUser } from "@/lib/hsk-enrollment";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -8,11 +8,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const courses = await prisma.course.findMany({
-    where: { published: true },
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-    include: { _count: { select: { cards: true } } },
-  });
+  const courses = await listCoursesForUser(session.user.id, session.user.email);
 
   return NextResponse.json(courses);
 }

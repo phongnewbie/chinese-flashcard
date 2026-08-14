@@ -3,6 +3,7 @@ import { getAccessStatus } from "@/lib/access";
 import { parseCourseCardTypes } from "@/lib/card-types";
 import { getCourseTemplates } from "@/lib/card-template";
 import { ensureAppSettings, prisma } from "@/lib/db";
+import { canAccessCourse } from "@/lib/hsk-enrollment";
 import { buildStudyQueue } from "@/lib/study-queue";
 import { NextResponse } from "next/server";
 
@@ -20,6 +21,12 @@ export async function GET(req: Request, context: RouteContext) {
   }
 
   const { courseId } = await context.params;
+
+  const allowed = await canAccessCourse(session.user.id, session.user.email, courseId);
+  if (!allowed) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const url = new URL(req.url);
   const section = url.searchParams.get("section") ?? "vocabulary";
   const mode = (url.searchParams.get("mode") ?? "review") as "review" | "new" | "all";

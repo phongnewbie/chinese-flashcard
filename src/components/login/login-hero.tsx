@@ -4,10 +4,10 @@ export function LoginHero() {
       <div className="login-hero__brand relative z-10">
         <div className="flex items-center gap-2 text-white/95">
           <span className="login-hero__logo-grid" aria-hidden />
-          <span className="text-xl font-bold tracking-wide">Hanki</span>
+          <span className="text-xl font-bold tracking-wide">ÔN HSK</span>
         </div>
         <h1 className="mt-8 text-3xl sm:text-4xl font-bold text-white leading-tight max-w-md">
-          Hanki Chào mừng bạn!{" "}
+          Chào mừng bạn!{" "}
           <span className="block mt-1 text-2xl sm:text-3xl font-semibold opacity-95">欢迎你</span>
         </h1>
       </div>

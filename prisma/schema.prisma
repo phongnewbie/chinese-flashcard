@@ -24,6 +24,7 @@ model User {
   devices          Device[]
   cardReviews      CardReview[]
   reviewLogs       ReviewLog[]
+  hskLevels        UserHskLevel[]
 }
 
 model Account {
@@ -71,6 +72,17 @@ model Device {
   @@unique([userId, deviceKey])
 }
 
+model UserHskLevel {
+  id        String   @id @default(cuid())
+  userId    String
+  hskLevel  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, hskLevel])
+  @@index([hskLevel])
+}
+
 model AppSetting {
   id             String @id @default("default")
   trialMinutes   Int    @default(30)
@@ -85,6 +97,9 @@ model Course {
   id            String      @id @default(cuid())
   title         String
   description   String?
+  hskLevel      String?
+  primarySection String?
+  lessonNumber  Int?
   published     Boolean     @default(true)
   sortOrder     Int         @default(0)
   frontTemplate String?
