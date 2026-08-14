@@ -32,6 +32,12 @@ export function parseCourseCardTypes(raw: string | null | undefined, section: st
   if (section === "vocabulary") {
     return [...DEFAULT_VOCAB_CARD_TYPES];
   }
+  if (section === "grammar") {
+    return [{ id: "trung_viet", label: "Trung → Việt", ord: 0 }];
+  }
+  if (section === "common") {
+    return [{ id: "viet_trung", label: "Việt → Trung", ord: 0 }];
+  }
   return [...DEFAULT_SINGLE_CARD_TYPE];
 }
 

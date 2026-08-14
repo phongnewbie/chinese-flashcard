@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AnkiDeckOverview,
+  AnkiSessionFinished,
+  type DeckStats,
+} from "@/components/anki-deck-overview";
 
 type Card = {
   id: string;
@@ -25,14 +30,20 @@ function normalizeSentence(s: string) {
 export function SentenceOrderStudy({
   courseId,
   mode = "review",
+  onModeChange,
 }: {
   courseId: string;
   mode?: "review" | "all" | "new";
+  onModeChange: (mode: "review" | "all" | "new") => void;
 }) {
   const [cards, setCards] = useState<Card[]>([]);
+  const [stats, setStats] = useState<DeckStats>({ new: 0, learning: 0, due: 0, queue: 0, total: 0 });
+  const [title, setTitle] = useState("SẮP XẾP CÂU");
+  const [phase, setPhase] = useState<"overview" | "study" | "finished">("overview");
+  const [sessionCount, setSessionCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [index, setIndex] = useState(0);
-  const current = cards[index];
+  const current = phase === "study" ? cards[index] : undefined;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -42,7 +53,17 @@ export function SentenceOrderStudy({
     );
     const data = await res.json();
     setLoading(false);
-    if (res.ok) setCards(data.cards ?? []);
+    if (!res.ok) return;
+    setCards(data.cards ?? []);
+    setTitle(data.title?.toUpperCase() ?? "SẮP XẾP CÂU");
+    setStats({
+      new: data.stats?.new ?? 0,
+      learning: data.stats?.learning ?? 0,
+      due: data.stats?.due ?? 0,
+      queue: data.stats?.queue ?? 0,
+      total: data.stats?.total,
+    });
+    setPhase("overview");
   }, [courseId, mode]);
 
   useEffect(() => {
@@ -89,18 +110,38 @@ export function SentenceOrderStudy({
     return <p className="text-center text-stone-500 py-12">Đang tải câu…</p>;
   }
 
-  if (!current) {
+  if (phase === "overview") {
     return (
-      <div className="text-center py-12 space-y-4">
-        <p className="text-stone-500">Chưa có câu sắp xếp hoặc đã hoàn thành phiên học.</p>
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="rounded-xl bg-emerald-600 text-white px-6 py-2.5 text-sm"
-        >
-          Học tiếp
-        </button>
-      </div>
+      <AnkiDeckOverview
+        title={title}
+        section="sentence_order"
+        stats={stats}
+        mode={mode}
+        onModeChange={onModeChange}
+        onStudy={() => {
+          if (cards.length === 0) return;
+          setSessionCount(0);
+          setIndex(0);
+          setPhase("study");
+        }}
+      />
+    );
+  }
+
+  if (phase === "finished" || !current) {
+    return (
+      <AnkiSessionFinished
+        title={title}
+        studied={sessionCount}
+        onBack={() => setPhase("overview")}
+        onContinue={() => {
+          if (stats.queue > 0) {
+            setSessionCount(0);
+            setIndex(0);
+            setPhase("study");
+          } else void load();
+        }}
+      />
     );
   }
 
@@ -125,7 +166,9 @@ export function SentenceOrderStudy({
   };
 
   const next = () => {
+    setSessionCount((n) => n + 1);
     if (index + 1 >= cards.length) {
+      setPhase("finished");
       void load();
     } else {
       setIndex((i) => i + 1);

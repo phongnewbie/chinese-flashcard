@@ -1,29 +1,83 @@
+import type { NextAuthConfig } from "next-auth";
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import Facebook from "next-auth/providers/facebook";
+import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db";
+import { normalizeEmail, verifyPassword } from "@/lib/password";
+
+const providers: NextAuthConfig["providers"] = [
+  Google({
+    clientId: process.env.AUTH_GOOGLE_ID!,
+    clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+  }),
+  Credentials({
+    name: "Email",
+    credentials: {
+      email: { label: "Email", type: "email" },
+      password: { label: "Password", type: "password" },
+    },
+    async authorize(credentials) {
+      const email = normalizeEmail(String(credentials?.email ?? ""));
+      const password = String(credentials?.password ?? "");
+      if (!email || !password) return null;
+
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (!user?.passwordHash) return null;
+      const ok = await verifyPassword(password, user.passwordHash);
+      if (!ok) return null;
+
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        image: user.image,
+        isPremium: user.isPremium,
+        canEditContent: user.canEditContent,
+      };
+    },
+  }),
+];
+
+if (process.env.AUTH_FACEBOOK_ID && process.env.AUTH_FACEBOOK_SECRET) {
+  providers.unshift(
+    Facebook({
+      clientId: process.env.AUTH_FACEBOOK_ID,
+      clientSecret: process.env.AUTH_FACEBOOK_SECRET,
+    }),
+  );
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   trustHost: true,
-  providers: [
-    Google({
-      clientId: process.env.AUTH_GOOGLE_ID!,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET!,
-    }),
-  ],
+  providers,
   pages: {
     signIn: "/",
   },
-  session: { strategy: "database" },
+  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   callbacks: {
-    session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
-        session.user.isPremium = user.isPremium;
-        session.user.canEditContent = user.canEditContent;
+    async jwt({ token, user }) {
+      if (user?.id) {
+        token.sub = user.id;
+        const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+        token.isPremium = dbUser?.isPremium ?? false;
+        token.canEditContent = dbUser?.canEditContent ?? false;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user && token.sub) {
+        session.user.id = token.sub;
+        session.user.isPremium = Boolean(token.isPremium);
+        session.user.canEditContent = Boolean(token.canEditContent);
       }
       return session;
     },
   },
 });
+
+export function isFacebookAuthEnabled(): boolean {
+  return Boolean(process.env.AUTH_FACEBOOK_ID && process.env.AUTH_FACEBOOK_SECRET);
+}

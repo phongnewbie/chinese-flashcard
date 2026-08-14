@@ -15,9 +15,9 @@ declare module "next-auth" {
   }
 }
 
-declare module "@auth/core/adapters" {
-  interface AdapterUser {
-    isPremium: boolean;
-    canEditContent: boolean;
+declare module "@auth/core/jwt" {
+  interface JWT {
+    isPremium?: boolean;
+    canEditContent?: boolean;
   }
 }

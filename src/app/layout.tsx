@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "中文 Flashcard — Ôn tập tiếng Trung",
-  description: "Học từ vựng tiếng Trung bằng flashcard, học thử có giới hạn thời gian",
+  title: "Hanki — Ôn tập tiếng Trung",
+  description: "Hanki — Học từ vựng tiếng Trung bằng flashcard",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
