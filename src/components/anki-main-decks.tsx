@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { LockScreen, TrialBanner, useAccess } from "@/components/access-ui";
+import { canUserStudy, isAccessLocked, LockScreen, TrialBanner, useAccess } from "@/components/access-ui";
 import { categoryDeckLabel, type HskCategoryId } from "@/lib/hsk-levels";
 import type { DeckCountStats } from "@/lib/deck-overview-stats";
 
@@ -57,8 +57,6 @@ function StatsCells({ stats }: { stats: DeckCountStats }) {
 export function AnkiMainDecks() {
   const router = useRouter();
   const { access, loading: accessLoading } = useAccess();
-  const locked = !accessLoading && access != null && !access.allowed;
-  const canStudy = access?.allowed ?? false;
 
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,7 +89,7 @@ export function AnkiMainDecks() {
     setExpandedCats((p) => ({ ...p, [key]: !p[key] }));
 
   const openStudy = (deckId: string) => {
-    if (!canStudy && !data?.isAdmin) return;
+    if (!data?.isAdmin && !canUserStudy(access)) return;
     router.push(`/hoc/${deckId}`);
   };
 
@@ -169,7 +167,8 @@ export function AnkiMainDecks() {
   }
 
   const isAdmin = data.isAdmin;
-  const studyAllowed = isAdmin || canStudy;
+  const studyAllowed = isAdmin || canUserStudy(access);
+  const locked = !isAdmin && isAccessLocked(access);
 
   return (
     <div className="anki-home">
@@ -484,7 +483,7 @@ function CategoryBlock({
               }}
             >
               {isAdmin && <span className="anki-drag-handle" title="Kéo để sắp xếp">⠿</span>}
-              {!studyAllowed && <span className="anki-lock-icon">🔒</span>}
+              {!isAdmin && !studyAllowed && <span className="anki-lock-icon">🔒</span>}
               {isAdmin && renamingId === deck.id ? (
                 <input
                   type="text"

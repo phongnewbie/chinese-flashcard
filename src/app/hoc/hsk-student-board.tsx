@@ -5,7 +5,7 @@ import {
   categoriesForLevel,
   HSK_LEVELS,
 } from "@/lib/hsk-levels";
-import { LockScreen, TrialBanner, useAccess } from "@/components/access-ui";
+import { canUserStudy, isAccessLocked, LockScreen, TrialBanner, useAccess } from "@/components/access-ui";
 
 type LessonCourse = {
   id: string;
@@ -24,8 +24,8 @@ export function HskStudentBoard({
   isAdmin?: boolean;
 }) {
   const { access, loading } = useAccess();
-  const locked = !loading && access != null && !access.allowed;
-  const canStudy = isAdmin || (access?.allowed ?? false);
+  const locked = !loading && isAccessLocked(access);
+  const canStudy = isAdmin || canUserStudy(access);
 
   const coursesByLevel: Record<string, LessonCourse[]> = {};
   for (const level of HSK_LEVELS) {

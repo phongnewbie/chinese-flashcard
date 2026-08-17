@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 export type AccessPayload = {
   allowed: boolean;
+  isAdmin?: boolean;
   reason?: string;
   isPremium: boolean;
   trialMinutes: number;
@@ -12,6 +13,24 @@ export type AccessPayload = {
   zaloUrl: string;
   lockMessage: string;
 };
+
+/** Học viên còn trong thời gian học thử hoặc đã được cấp quyền học. */
+export function canUserStudy(access: AccessPayload | null | undefined): boolean {
+  if (!access) return false;
+  if (access.isAdmin || access.isPremium) return true;
+  return access.allowed === true;
+}
+
+/** Chỉ khóa khi đã hết thời gian trải nghiệm (không khóa trong lúc đang học thử). */
+export function isTrialExpired(access: AccessPayload | null | undefined): boolean {
+  if (!access || access.isAdmin || access.isPremium) return false;
+  if (access.reason === "trial_expired") return true;
+  return access.allowed === false && access.remainingSeconds === 0;
+}
+
+export function isAccessLocked(access: AccessPayload | null | undefined): boolean {
+  return isTrialExpired(access);
+}
 
 function formatTime(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -33,8 +52,8 @@ export function TrialBanner() {
     return () => clearInterval(t);
   }, []);
 
-  if (!access || access.isPremium) return null;
-  if (access.remainingSeconds == null) return null;
+  if (!access || access.isAdmin || access.isPremium) return null;
+  if (!access.allowed || access.remainingSeconds == null || access.remainingSeconds <= 0) return null;
 
   return (
     <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-2 text-sm text-amber-900">

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useAccess, LockScreen } from "@/components/access-ui";
+import { isAccessLocked, useAccess, LockScreen } from "@/components/access-ui";
 
 type Course = {
   id: string;
@@ -23,8 +23,8 @@ export function StudentCourseList({
     return <p className="text-stone-500 text-sm">Đang tải...</p>;
   }
 
-  if (access && !access.allowed) {
-    return <LockScreen access={access} />;
+  if (isAccessLocked(access)) {
+    return <LockScreen access={access!} />;
   }
 
   if (courses.length === 0) {

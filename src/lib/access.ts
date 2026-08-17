@@ -3,6 +3,7 @@ import { prisma, ensureAppSettings } from "@/lib/db";
 
 export type AccessStatus = {
   allowed: boolean;
+  isAdmin: boolean;
   reason?: "trial_expired" | "device_limit" | "not_logged_in" | "no_study_access";
   isPremium: boolean;
   canStudy: boolean;
@@ -20,9 +21,13 @@ export async function getAccessStatus(userId: string, email?: string | null): Pr
     prisma.appSetting.findUniqueOrThrow({ where: { id: "default" } }),
   ]);
 
+  const adminEmail = email ?? user?.email;
+  const isAdmin = Boolean(adminEmail && isAdminEmail(adminEmail));
+
   if (!user) {
     return {
       allowed: false,
+      isAdmin: false,
       reason: "not_logged_in",
       isPremium: false,
       canStudy: false,
@@ -34,10 +39,10 @@ export async function getAccessStatus(userId: string, email?: string | null): Pr
     };
   }
 
-  const adminEmail = email ?? user.email;
-  if (adminEmail && isAdminEmail(adminEmail)) {
+  if (isAdmin) {
     return {
       allowed: true,
+      isAdmin: true,
       isPremium: true,
       canStudy: true,
       trialMinutes: settings.trialMinutes,
@@ -51,6 +56,7 @@ export async function getAccessStatus(userId: string, email?: string | null): Pr
   if (user.canStudy || user.isPremium) {
     return {
       allowed: true,
+      isAdmin: false,
       isPremium: true,
       canStudy: true,
       trialMinutes: settings.trialMinutes,
@@ -78,6 +84,7 @@ export async function getAccessStatus(userId: string, email?: string | null): Pr
   if (remainingMs <= 0) {
     return {
       allowed: false,
+      isAdmin: false,
       reason: "trial_expired",
       isPremium: false,
       canStudy: false,
@@ -91,6 +98,7 @@ export async function getAccessStatus(userId: string, email?: string | null): Pr
 
   return {
     allowed: true,
+    isAdmin: false,
     isPremium: false,
     canStudy: false,
     trialMinutes: settings.trialMinutes,

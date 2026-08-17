@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { HskVocabStudy } from "@/components/hsk-vocab-study";
 import { SentenceOrderStudy } from "@/components/sentence-order-study";
-import { LockScreen, TrialBanner, useAccess } from "@/components/access-ui";
+import { isAccessLocked, LockScreen, TrialBanner, useAccess } from "@/components/access-ui";
 import { parseSectionValue, STUDY_SECTIONS, type StudySectionId } from "@/lib/sections";
 import type { DeckStats } from "@/components/anki-deck-overview";
 
@@ -43,7 +43,7 @@ export function StudyClient({ courseId }: { courseId: string }) {
   const sectionLabel = STUDY_SECTIONS.find((s) => s.id === section)?.label;
 
   if (accessLoading) return <p className="text-stone-500">Đang tải...</p>;
-  if (access && !access.allowed) return <LockScreen access={access} />;
+  if (isAccessLocked(access)) return <LockScreen access={access!} />;
 
   return (
     <div className="space-y-6">
