@@ -18,6 +18,7 @@ import "./anki-browse.css";
 type Props = {
   courseId: string;
   courseTitle: string;
+  defaultSection?: StudySectionId;
   fieldDefsRaw: string | null;
   onMsg: (msg: string) => void;
   onAddNoteRef?: React.MutableRefObject<(() => void) | null>;
@@ -28,6 +29,7 @@ type Props = {
 export function AnkiBrowse({
   courseId,
   courseTitle,
+  defaultSection = "vocabulary",
   fieldDefsRaw,
   onMsg,
   onAddNoteRef,
@@ -127,11 +129,12 @@ export function AnkiBrowse({
   };
 
   const addNote = useCallback(async () => {
+    const section = (sectionFilter || defaultSection) as StudySectionId;
     const res = await fetch(`/api/admin/courses/${courseId}/cards`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        section: sectionFilter || "vocabulary",
+        section,
         front: "新",
         back: "nghĩa mới",
         pinyin: "xīn",
@@ -140,10 +143,13 @@ export function AnkiBrowse({
     });
     const card = await res.json();
     if (res.ok) {
+      onMsg("Đã thêm thẻ mới — sửa nội dung bên phải rồi bấm Lưu");
       await loadCards();
       setSelectedId(card.id);
+    } else {
+      onMsg("Không thêm được thẻ");
     }
-  }, [courseId, sectionFilter, loadCards]);
+  }, [courseId, sectionFilter, defaultSection, loadCards, onMsg]);
 
   useEffect(() => {
     if (onAddNoteRef) onAddNoteRef.current = () => void addNote();
@@ -199,13 +205,14 @@ export function AnkiBrowse({
       </div>
 
       <div className="anki-win-menubar">
-        <Link href="/admin" className="anki-win-back">← Decks</Link>
-        <span>Edit</span>
-        <span>View</span>
-        <span>Notes</span>
-        <span>Cards</span>
-        <span>Go</span>
-        <span>Help</span>
+        <Link href="/admin" className="anki-win-back">← Bảng quản trị</Link>
+        <button type="button" className="anki-win-menu-btn" onClick={() => void addNote()}>
+          + Thêm thẻ
+        </button>
+        <button type="button" className="anki-win-menu-btn" onClick={() => onOpenSettings?.()}>
+          Mẫu thẻ
+        </button>
+        <span className="anki-win-menubar-title">{courseTitle}</span>
       </div>
 
       <div className="anki-win-body">
@@ -339,6 +346,9 @@ export function AnkiBrowse({
         {/* CENTER — search + table */}
         <div className="anki-win-list-pane">
           <div className="anki-win-list-toolbar">
+            <button type="button" className="anki-win-add-btn" onClick={() => void addNote()}>
+              + Thêm thẻ
+            </button>
             <label className="anki-win-notes-toggle">
               Notes
               <input type="checkbox" defaultChecked readOnly />
@@ -355,7 +365,15 @@ export function AnkiBrowse({
           {loading ? (
             <p className="anki-win-empty">Đang tải…</p>
           ) : cards.length === 0 ? (
-            <p className="anki-win-empty">Không có note — bấm Notes → Add</p>
+            <div className="anki-win-empty-state">
+              <p>Chưa có thẻ trong bộ này.</p>
+              <button type="button" className="anki-win-add-btn large" onClick={() => void addNote()}>
+                + Thêm thẻ đầu tiên
+              </button>
+              <p className="anki-win-empty-hint">
+                Hoặc dùng tab <strong>Import Excel</strong> phía trên để import hàng loạt.
+              </p>
+            </div>
           ) : (
             <table className="anki-win-table">
               <colgroup>
@@ -394,15 +412,31 @@ export function AnkiBrowse({
         {/* RIGHT EDITOR */}
         <div className="anki-win-editor">
           {!selected ? (
-            <p className="anki-win-empty">Chọn note trong bảng</p>
+            <div className="anki-win-empty-state">
+              <p>Chưa chọn thẻ — hoặc tạo thẻ mới.</p>
+              <button type="button" className="anki-win-add-btn large" onClick={() => void addNote()}>
+                + Thêm thẻ
+              </button>
+            </div>
           ) : (
             <>
               <div className="anki-win-editor-top">
                 <div className="anki-win-editor-top-left">
-                  <button type="button" onClick={() => setFieldsDialogOpen(true)} title="Quản lý trường & font chữ">
-                    Fields…
+                  <button
+                    type="button"
+                    onClick={() => setFieldsDialogOpen(true)}
+                    title="Quản lý trường dữ liệu (giống Anki Fields)"
+                  >
+                    Trường dữ liệu…
                   </button>
-                  <button type="button" onClick={() => onOpenSettings?.()}>Cards…</button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenSettings?.()}
+                    title="Chỉnh HTML/CSS hiển thị thẻ (giống Anki Cards template)"
+                    className="anki-win-template-btn"
+                  >
+                    Mẫu thẻ (HTML/CSS)…
+                  </button>
                   <button type="button" onClick={() => setPreviewOpen(true)}>Preview</button>
                 </div>
                 <div className="anki-win-editor-top-right">

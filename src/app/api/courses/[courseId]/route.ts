@@ -25,7 +25,7 @@ export async function GET(_req: Request, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const access = await getAccessStatus(session.user.id);
+  const access = await getAccessStatus(session.user.id, session.user.email);
   if (!access.allowed) {
     return NextResponse.json({ error: "locked", access }, { status: 403 });
   }

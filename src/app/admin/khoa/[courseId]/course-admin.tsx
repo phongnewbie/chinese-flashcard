@@ -15,6 +15,7 @@ type Course = {
   id: string;
   title: string;
   description: string | null;
+  primarySection: string | null;
   frontTemplate: string | null;
   backTemplate: string | null;
   cardCss: string | null;
@@ -117,25 +118,26 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
   if (tab === "browse") {
     return (
       <div style={{ background: "#ece9e8", minHeight: "100vh", padding: 8 }}>
+        <div className="anki-subnav" style={{ marginBottom: 6 }}>
+          <button type="button" className="on">Browse / Nhập liệu</button>
+          <button type="button" onClick={() => setTab("import")}>Import Excel</button>
+          <button type="button" onClick={() => setTab("media")}>Media</button>
+          <button type="button" onClick={() => setTab("settings")}>Mẫu hiển thị thẻ</button>
+          <Link href="/admin" style={{ marginLeft: "auto", fontSize: 11, alignSelf: "center" }}>
+            ← Về bảng quản trị
+          </Link>
+        </div>
         {msg && <div className="anki-win-status">{msg}</div>}
         <AnkiBrowse
           courseId={courseId}
           courseTitle={course.title}
+          defaultSection={(course.primarySection as StudySectionId | null) ?? "vocabulary"}
           fieldDefsRaw={course.fieldDefs}
           onMsg={setMsg}
           onAddNoteRef={addNoteRef}
           onOpenSettings={() => setTab("settings")}
           onFieldDefsSaved={reload}
         />
-        <div className="anki-subnav" style={{ marginTop: 4 }}>
-          <button type="button" className="on">Browse</button>
-          <button type="button" onClick={() => setTab("import")}>Import Excel</button>
-          <button type="button" onClick={() => setTab("media")}>Media</button>
-          <button type="button" onClick={() => setTab("settings")}>Fields / Template</button>
-          <Link href="/admin" style={{ marginLeft: "auto", fontSize: 11, alignSelf: "center" }}>
-            ← Quản trị học viên
-          </Link>
-        </div>
       </div>
     );
   }
@@ -143,12 +145,12 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
   return (
     <div style={{ background: "#ece9e8", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <div className="anki-subnav">
-        <button type="button" onClick={() => setTab("browse")}>Browse</button>
+        <button type="button" onClick={() => setTab("browse")}>Browse / Nhập liệu</button>
         <button type="button" className={tab === "import" ? "on" : ""} onClick={() => setTab("import")}>Import Excel</button>
         <button type="button" className={tab === "media" ? "on" : ""} onClick={() => setTab("media")}>Media</button>
-        <button type="button" className={tab === "settings" ? "on" : ""} onClick={() => setTab("settings")}>Fields / Template</button>
+        <button type="button" className={tab === "settings" ? "on" : ""} onClick={() => setTab("settings")}>Mẫu hiển thị thẻ</button>
         <Link href="/admin" style={{ marginLeft: "auto", fontSize: 11, alignSelf: "center" }}>
-          ← Quản trị học viên
+          ← Về bảng quản trị
         </Link>
       </div>
       {msg && <div className="anki-win-status">{msg}</div>}
@@ -223,6 +225,10 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
         )}
         {tab === "settings" && (
           <div className="space-y-6">
+            <p className="text-sm text-stone-600 bg-amber-50 border border-amber-100 rounded-lg px-4 py-3">
+              Giống Anki: <strong>Tools → Manage Note Types → Cards</strong> — chỉnh HTML/CSS mặt trước, mặt sau và
+              style thẻ cho bộ <strong>{course.title}</strong>.
+            </p>
             <FieldDefsEditor courseId={courseId} initial={resolveFieldDefs(course.fieldDefs)} onSaved={reload} />
             <TemplateEditor
               courseId={courseId}

@@ -2,6 +2,17 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import {
+  AdminAlert,
+  AdminBtnPrimary,
+  AdminCard,
+  AdminEmpty,
+  AdminField,
+  AdminLoading,
+  AdminSectionHeader,
+  AdminToolbar,
+  adminInputClass,
+} from "./admin-ui";
 
 type Settings = {
   trialMinutes: number;
@@ -30,7 +41,7 @@ type CourseRow = {
   _count: { cards: number };
 };
 
-export function AdminPanel() {
+export function AdminPanel({ section = "all" }: { section?: "all" | "settings" | "students" }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [courses, setCourses] = useState<CourseRow[]>([]);
@@ -99,154 +110,132 @@ export function AdminPanel() {
   };
 
   if (!settings) {
-    return <p className="text-stone-500">Đang tải...</p>;
+    return <AdminLoading />;
   }
 
   return (
-    <div className="space-y-10">
-      {msg && (
-        <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
-          {msg}
-        </p>
+    <div className="admin-tab-content">
+      <AdminAlert>{msg}</AdminAlert>
+
+      {(section === "all" || section === "settings") && (
+        <AdminCard>
+          <AdminSectionHeader
+            title="Cài đặt học thử & Zalo"
+            description="Thời gian dùng thử, link liên hệ và thông báo khi khóa bài học"
+          />
+          <div className="admin-form-grid">
+            <AdminField label="Thời gian học thử (phút)">
+              <input
+                type="number"
+                min={1}
+                className={adminInputClass()}
+                value={settings.trialMinutes}
+                onChange={(e) =>
+                  setSettings({ ...settings, trialMinutes: Number(e.target.value) })
+                }
+              />
+            </AdminField>
+            <AdminField label="Số thiết bị tối đa / tài khoản">
+              <input
+                type="number"
+                min={1}
+                max={10}
+                className={adminInputClass()}
+                value={settings.maxDevices}
+                onChange={(e) =>
+                  setSettings({ ...settings, maxDevices: Number(e.target.value) })
+                }
+              />
+            </AdminField>
+            <AdminField label="Thẻ mới / ngày (SRS)">
+              <input
+                type="number"
+                min={0}
+                max={500}
+                className={adminInputClass()}
+                value={settings.maxNewPerDay}
+                onChange={(e) =>
+                  setSettings({ ...settings, maxNewPerDay: Number(e.target.value) })
+                }
+              />
+            </AdminField>
+            <AdminField label="Bước học (phút, cách nhau bởi dấu phẩy)">
+              <input
+                className={adminInputClass()}
+                value={settings.learningSteps}
+                onChange={(e) =>
+                  setSettings({ ...settings, learningSteps: e.target.value })
+                }
+                placeholder="1,10"
+              />
+            </AdminField>
+            <AdminField label="Link Zalo" className="admin-field-full">
+              <input
+                className={adminInputClass()}
+                value={settings.zaloUrl}
+                onChange={(e) => setSettings({ ...settings, zaloUrl: e.target.value })}
+              />
+            </AdminField>
+            <AdminField label="Thông báo khi hết học thử" className="admin-field-full">
+              <textarea
+                className={`${adminInputClass()} admin-textarea`}
+                value={settings.lockMessage}
+                onChange={(e) => setSettings({ ...settings, lockMessage: e.target.value })}
+              />
+            </AdminField>
+          </div>
+          <div className="admin-form-actions">
+            <AdminBtnPrimary onClick={saveSettings}>Lưu cài đặt</AdminBtnPrimary>
+          </div>
+        </AdminCard>
       )}
 
-      <section className="rounded-xl border border-stone-200 p-6 bg-white space-y-4">
-        <h2 className="font-semibold text-lg">Cài đặt học thử &amp; Zalo</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm">
-            Thời gian học thử (phút)
-            <input
-              type="number"
-              min={1}
-              className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2"
-              value={settings.trialMinutes}
-              onChange={(e) =>
-                setSettings({ ...settings, trialMinutes: Number(e.target.value) })
-              }
-            />
-          </label>
-          <label className="text-sm">
-            Số thiết bị tối đa / tài khoản
-            <input
-              type="number"
-              min={1}
-              max={10}
-              className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2"
-              value={settings.maxDevices}
-              onChange={(e) =>
-                setSettings({ ...settings, maxDevices: Number(e.target.value) })
-              }
-            />
-          </label>
-          <label className="text-sm">
-            Thẻ mới / ngày (SRS)
-            <input
-              type="number"
-              min={0}
-              max={500}
-              className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2"
-              value={settings.maxNewPerDay}
-              onChange={(e) =>
-                setSettings({ ...settings, maxNewPerDay: Number(e.target.value) })
-              }
-            />
-          </label>
-          <label className="text-sm">
-            Bước học (phút, cách nhau bởi dấu phẩy)
-            <input
-              className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2"
-              value={settings.learningSteps}
-              onChange={(e) =>
-                setSettings({ ...settings, learningSteps: e.target.value })
-              }
-              placeholder="1,10"
-            />
-          </label>
-        </div>
-        <label className="text-sm block">
-          Link Zalo
-          <input
-            className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2"
-            value={settings.zaloUrl}
-            onChange={(e) => setSettings({ ...settings, zaloUrl: e.target.value })}
+      {section === "all" && (
+        <AdminCard>
+          <AdminSectionHeader
+            title="Khóa học (legacy)"
+            description="Tạo khóa học cũ — nên dùng tab Bộ thẻ / Bài học"
           />
-        </label>
-        <label className="text-sm block">
-          Thông báo khi hết học thử
-          <textarea
-            className="mt-1 w-full rounded-lg border border-stone-200 px-3 py-2 min-h-[80px]"
-            value={settings.lockMessage}
-            onChange={(e) => setSettings({ ...settings, lockMessage: e.target.value })}
+          <AdminToolbar>
+            <input
+              placeholder="Tên khóa mới..."
+              className={adminInputClass("admin-input-grow")}
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void createCourse();
+              }}
+            />
+            <AdminBtnPrimary onClick={createCourse}>+ Thêm khóa học</AdminBtnPrimary>
+          </AdminToolbar>
+          {courses.length === 0 ? (
+            <AdminEmpty>Chưa có khóa học legacy</AdminEmpty>
+          ) : (
+            <ul className="admin-list">
+              {courses.map((c) => (
+                <li key={c.id} className="admin-list-item">
+                  <div>
+                    <p className="admin-list-text font-medium">{c.title}</p>
+                    <p className="text-xs text-stone-500">{c._count.cards} thẻ</p>
+                  </div>
+                  <Link href={`/admin/khoa/${c.id}`} className="admin-link-btn">
+                    Browse →
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </AdminCard>
+      )}
+
+      {(section === "all" || section === "students") && (
+        <AdminCard>
+          <AdminSectionHeader
+            title="Học viên & quyền truy cập"
+            description="Cấp quyền học không giới hạn hoặc reset thời gian học thử"
           />
-        </label>
-        <button
-          type="button"
-          onClick={saveSettings}
-          className="rounded-lg bg-stone-900 text-white px-4 py-2 text-sm hover:bg-stone-800"
-        >
-          Lưu cài đặt
-        </button>
-      </section>
-
-      <section className="rounded-xl border border-stone-200 p-6 bg-white space-y-4">
-        <div>
-          <h2 className="font-semibold text-lg">Khóa học</h2>
-          <p className="text-xs text-stone-500 mt-0.5">Tạo khóa học để import bài học (Excel / Notepad .txt) cho học viên</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <input
-            placeholder="Tên khóa mới (VD: HSK 1, Tiếng Trung Sơ Cấp...)"
-            className="flex-1 min-w-[240px] rounded-lg border border-stone-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void createCourse();
-            }}
-          />
-          <button
-            type="button"
-            onClick={createCourse}
-            className="rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm font-medium hover:bg-emerald-700 transition"
-          >
-            + Thêm khóa học
-          </button>
-        </div>
-
-        {courses.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-stone-300 p-6 text-center bg-stone-50/50 space-y-2">
-            <p className="text-sm font-medium text-stone-700">Chưa có khóa học nào trong hệ thống</p>
-            <p className="text-xs text-stone-500 max-w-md mx-auto">
-              Nhập tên khóa học vào ô trên (ví dụ: <strong className="text-stone-700">HSK 1</strong>) rồi bấm nút <strong className="text-emerald-700">+ Thêm khóa học</strong>. Sau đó bấm nút <strong className="text-emerald-700">Import Excel / Notepad</strong> để tải bài học lên.
-            </p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-stone-100">
-            {courses.map((c) => (
-              <li key={c.id} className="py-3.5 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-stone-900">{c.title}</p>
-                  <p className="text-xs text-stone-500 mt-0.5">{c._count.cards} thẻ bài học</p>
-                </div>
-                <Link
-                  href={`/admin/khoa/${c.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition"
-                >
-                  📋 Browse &amp; quản lý thẻ (Anki) →
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="rounded-xl border border-stone-200 p-6 bg-white space-y-4 overflow-x-auto">
-        <div>
-          <h2 className="font-semibold text-lg">Học viên &amp; quyền truy cập</h2>
-          <p className="text-xs text-stone-500 mt-1">
-            Chỉ admin mới cấp được quyền học không giới hạn. Học viên chưa được cấp chỉ học thử trong thời gian giới hạn.
-          </p>
-        </div>
-        <table className="w-full text-sm text-left">
+          <div className="admin-table-wrap">
+            <table className="admin-table">
           <thead>
             <tr className="text-stone-500 border-b">
               <th className="py-2 pr-4">Email</th>
@@ -306,9 +295,18 @@ export function AdminPanel() {
                 </td>
               </tr>
             ))}
+            {users.length === 0 && (
+              <tr>
+                <td colSpan={4}>
+                  <AdminEmpty>Chưa có học viên đăng ký</AdminEmpty>
+                </td>
+              </tr>
+            )}
           </tbody>
-        </table>
-      </section>
+            </table>
+          </div>
+        </AdminCard>
+      )}
     </div>
   );
 }

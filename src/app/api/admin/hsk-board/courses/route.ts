@@ -1,10 +1,9 @@
-import { requireAdmin } from "@/lib/api-auth";
 import {
   categoriesForLevel,
-  defaultLessonTitle,
   HSK_LEVELS,
   type HskCategoryId,
 } from "@/lib/hsk-levels";
+import { requireAdmin } from "@/lib/api-auth";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -35,8 +34,11 @@ export async function POST(req: Request) {
     _max: { lessonNumber: true },
   });
   const lessonNumber = body.lessonNumber ?? (maxLesson._max.lessonNumber ?? 0) + 1;
-  const title =
-    body.title?.trim() || defaultLessonTitle(hskLevel, primarySection, lessonNumber);
+  const customTitle = body.title?.trim();
+  if (!customTitle) {
+    return NextResponse.json({ error: "Vui lòng nhập tên bộ thẻ" }, { status: 400 });
+  }
+  const title = customTitle;
 
   const maxOrder = await prisma.course.aggregate({ _max: { sortOrder: true } });
 

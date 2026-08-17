@@ -42,8 +42,71 @@
   text-decoration: none;
 }
 
-.anki-win-menubar span:hover,
-.anki-win-menubar button:hover {
+.anki-win-menu-btn {
+  cursor: pointer !important;
+  background: #fff !important;
+  border: 1px solid #aaa !important;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.anki-win-menu-btn:hover {
+  background: #ecfdf5 !important;
+  border-color: #6ee7b7 !important;
+  color: #047857 !important;
+}
+
+.anki-win-menubar-title {
+  margin-left: auto;
+  font-weight: 600;
+  color: #444;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.anki-win-add-btn {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 12px;
+  background: #059669;
+  color: #fff;
+  border: 1px solid #047857;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.anki-win-add-btn:hover {
+  background: #047857;
+}
+
+.anki-win-add-btn.large {
+  font-size: 13px;
+  padding: 8px 20px;
+  margin: 8px 0;
+}
+
+.anki-win-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  text-align: center;
+  color: #666;
+  min-height: 180px;
+}
+
+.anki-win-empty-hint {
+  font-size: 11px;
+  color: #999;
+  margin-top: 8px;
+}
+
+.anki-win-menubar span:hover:not(.anki-win-menubar-title) {
   background: #e0e0e0;
 }
 
@@ -393,6 +456,13 @@
 
 .anki-win-editor-top button:hover {
   background: #eee;
+}
+
+.anki-win-template-btn {
+  background: #ecfdf5 !important;
+  border-color: #6ee7b7 !important;
+  color: #047857 !important;
+  font-weight: 600;
 }
 
 .anki-win-editor-top select {

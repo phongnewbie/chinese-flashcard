@@ -154,7 +154,7 @@ export function LoginCard({ facebookEnabled }: { facebookEnabled: boolean }) {
             <button
               type="button"
               className="login-link"
-              onClick={() => setMsg("Liên hệ giáo viên qua Zalo để được hỗ trợ đặt lại mật khẩu.")}
+              onClick={() => window.open("https://zalo.me/0702924204", "_blank", "noopener,noreferrer")}
             >
               Quên mật khẩu
             </button>

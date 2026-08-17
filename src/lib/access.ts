@@ -1,3 +1,4 @@
+import { isAdminEmail } from "@/lib/admin";
 import { prisma, ensureAppSettings } from "@/lib/db";
 
 export type AccessStatus = {
@@ -12,7 +13,7 @@ export type AccessStatus = {
   lockMessage: string;
 };
 
-export async function getAccessStatus(userId: string): Promise<AccessStatus> {
+export async function getAccessStatus(userId: string, email?: string | null): Promise<AccessStatus> {
   await ensureAppSettings();
   const [user, settings] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId } }),
@@ -27,6 +28,20 @@ export async function getAccessStatus(userId: string): Promise<AccessStatus> {
       canStudy: false,
       trialMinutes: settings.trialMinutes,
       trialStartedAt: null,
+      remainingSeconds: null,
+      zaloUrl: settings.zaloUrl,
+      lockMessage: settings.lockMessage,
+    };
+  }
+
+  const adminEmail = email ?? user.email;
+  if (adminEmail && isAdminEmail(adminEmail)) {
+    return {
+      allowed: true,
+      isPremium: true,
+      canStudy: true,
+      trialMinutes: settings.trialMinutes,
+      trialStartedAt: user.trialStartedAt?.toISOString() ?? null,
       remainingSeconds: null,
       zaloUrl: settings.zaloUrl,
       lockMessage: settings.lockMessage,
