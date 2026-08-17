@@ -735,6 +735,276 @@ body {
   vertical-align: top;
 }
 
+/* ── Anki main deck list (home after login) ── */
+.anki-home-main {
+  min-height: calc(100vh - 56px);
+  background: #ece9e8;
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.anki-home {
+  width: 100%;
+  max-width: 920px;
+}
+
+.anki-home-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: center;
+  margin-bottom: 1rem;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+}
+
+.anki-home-nav-item {
+  font-size: 0.875rem;
+  color: #444;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+}
+
+.anki-home-nav-item.active {
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.anki-home-nav-item.btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.anki-home-nav-item.btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.anki-add-deck-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #d6d3d1;
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.anki-add-select,
+.anki-add-input {
+  font-size: 0.8125rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #d6d3d1;
+  border-radius: 6px;
+}
+
+.anki-add-input {
+  flex: 1;
+  min-width: 180px;
+}
+
+.anki-add-submit {
+  background: #059669;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.anki-add-cancel {
+  background: none;
+  border: none;
+  color: #78716c;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.anki-deck-table-wrap {
+  background: #fff;
+  border: 1px solid #c4c4c4;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.anki-deck-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.anki-deck-table thead {
+  background: #f5f5f4;
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.anki-deck-table th {
+  font-weight: 600;
+  color: #57534e;
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+}
+
+.anki-deck-stat-col,
+.anki-deck-gear-col {
+  width: 72px;
+  text-align: center !important;
+}
+
+.anki-deck-row {
+  cursor: pointer;
+  border-bottom: 1px solid #f5f5f4;
+}
+
+.anki-deck-row:hover {
+  background: #fafaf9;
+}
+
+.anki-deck-row.level {
+  background: #fefefe;
+}
+
+.anki-deck-row.category {
+  background: #fcfcfc;
+}
+
+.anki-deck-row.deck.locked {
+  opacity: 0.65;
+}
+
+.anki-deck-row.deck.dragging {
+  opacity: 0.5;
+  background: #ecfdf5;
+}
+
+.anki-deck-row.empty {
+  cursor: default;
+}
+
+.anki-deck-row.empty:hover {
+  background: transparent;
+}
+
+.anki-deck-name {
+  padding: 0.5rem 0.75rem;
+  vertical-align: middle;
+}
+
+.anki-deck-name.indent-1 {
+  padding-left: 1.75rem;
+}
+
+.anki-deck-name.indent-2 {
+  padding-left: 2.75rem;
+}
+
+.anki-tree-toggle {
+  display: inline-block;
+  width: 1rem;
+  color: #78716c;
+  font-size: 0.75rem;
+}
+
+.anki-deck-link {
+  color: #1c1917;
+  font-weight: 500;
+}
+
+.anki-deck-link:hover {
+  color: #047857;
+  text-decoration: underline;
+}
+
+.anki-deck-link.disabled {
+  color: #a8a29e;
+  cursor: not-allowed;
+}
+
+.anki-deck-meta {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  color: #a8a29e;
+}
+
+.anki-deck-count {
+  text-align: center;
+  padding: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.anki-deck-count.blue {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.anki-deck-count.red {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.anki-deck-count.muted {
+  color: #78716c;
+}
+
+.anki-deck-gear {
+  text-align: center;
+  font-size: 1rem;
+}
+
+.anki-deck-gear a {
+  text-decoration: none;
+  opacity: 0.5;
+}
+
+.anki-deck-gear a:hover {
+  opacity: 1;
+}
+
+.anki-inline-add {
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  color: #059669;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.anki-drag-handle {
+  margin-right: 0.35rem;
+  color: #a8a29e;
+  cursor: grab;
+  font-size: 0.85rem;
+}
+
+.anki-lock-icon {
+  margin-right: 0.25rem;
+}
+
+.anki-rename-input {
+  font-size: 0.875rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid #059669;
+  border-radius: 4px;
+  min-width: 160px;
+}
+
+.anki-home-footer {
+  text-align: center;
+  font-size: 0.8125rem;
+  color: #78716c;
+  margin-top: 1rem;
+  padding: 0.5rem;
+}
+
 .anki-app {
   font-family: "Segoe UI", Tahoma, Arial, sans-serif;
   font-size: 13px;

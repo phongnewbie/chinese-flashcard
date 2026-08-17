@@ -30,6 +30,14 @@ export function categoryLabel(id: string): string {
   return HSK_CATEGORIES.find((c) => c.id === id)?.label ?? id;
 }
 
+/** Nhãn hiển thị trên màn Bộ thẻ kiểu Anki */
+export function categoryDeckLabel(id: string, levelId: string): string {
+  const idx = categoriesForLevel(levelId).findIndex((c) => c.id === id);
+  const num = idx >= 0 ? idx + 1 : 0;
+  const name = categoryLabel(id).toUpperCase();
+  return num ? `${num}. ${name}` : name;
+}
+
 export function levelLabel(id: string): string {
   return HSK_LEVELS.find((l) => l.id === id)?.label ?? id;
 }

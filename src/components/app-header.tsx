@@ -16,7 +16,7 @@ export async function AppHeader() {
           {session ? (
             <>
               <Link href="/hoc" className="text-stone-600 hover:text-stone-900">
-                Khóa học
+                Bộ thẻ
               </Link>
               {admin && (
                 <Link href="/admin" className="text-emerald-700 hover:text-emerald-900 font-medium">
