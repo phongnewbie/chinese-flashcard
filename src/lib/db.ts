@@ -1,16 +1,21 @@
 import { PrismaClient } from "@/generated/prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { ensureDataDirs, getSqliteFilePath } from "@/lib/paths";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { ensureDataDirs, getDatabaseUrl, isPostgresDatabase } from "@/lib/paths";
 
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient; dbReady?: boolean };
 
-function createPrisma() {
-  const dbPath = getSqliteFilePath();
-  const adapter = new PrismaBetterSqlite3({ url: dbPath });
+function createPrisma(): PrismaClient {
+  const url = getDatabaseUrl();
+  if (!isPostgresDatabase(url)) {
+    throw new Error(
+      "DATABASE_URL phải trỏ tới PostgreSQL (Neon). " +
+        "Ví dụ: postgresql://user:pass@ep-xxx.region.aws.neon.tech/neondb?sslmode=require",
+    );
+  }
+  const adapter = new PrismaPg({ connectionString: url });
   return new PrismaClient({ adapter });
 }
 
-/** Dev HMR giữ Prisma cũ sau migrate/generate — tạo lại nếu thiếu delegate mới. */
 function getPrisma(): PrismaClient {
   const cached = globalForPrisma.prisma;
   if (cached && "userHskLevel" in cached) {
@@ -23,10 +28,23 @@ function getPrisma(): PrismaClient {
   return client;
 }
 
-export const prisma = getPrisma();
+/** Lazy proxy — tránh kết nối DB lúc `next build`. */
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = getPrisma();
+    const value = Reflect.get(client, prop, client);
+    return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(client) : value;
+  },
+});
+
+export async function ensureDbDurability() {
+  if (globalForPrisma.dbReady) return;
+  globalForPrisma.dbReady = true;
+}
 
 export async function ensureAppSettings() {
   await ensureDataDirs();
+  await ensureDbDurability();
   await prisma.appSetting.upsert({
     where: { id: "default" },
     create: { id: "default" },

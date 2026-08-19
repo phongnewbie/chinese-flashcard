@@ -22,10 +22,11 @@ services:
         value: production
       - key: DATA_DIR
         value: /var/data
-      - key: DATABASE_URL
-        value: file:/var/data/app.db
       - key: UPLOAD_DIR
         value: /var/data/uploads
+      # Neon PostgreSQL — điền connection string trên Render Dashboard
+      - key: DATABASE_URL
+        sync: false
       - key: AUTH_TRUST_HOST
         value: "true"
       - key: AUTH_SECRET

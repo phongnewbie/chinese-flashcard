@@ -66,3 +66,13 @@ export function sectionFromSheetName(sheetName: string): StudySectionId | null {
 export function sectionLabel(id: StudySectionId): string {
   return STUDY_SECTIONS.find((s) => s.id === id)?.label ?? id;
 }
+
+/** Một bộ thẻ HSK chỉ thuộc một danh mục (từ vựng / ngữ pháp / …). */
+export function lockedSectionForCourse(course: {
+  primarySection?: string | null;
+  hskLevel?: string | null;
+}): StudySectionId | null {
+  if (course.primarySection) return parseSectionValue(course.primarySection);
+  if (course.hskLevel) return "vocabulary";
+  return null;
+}

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { sectionLabel, type StudySectionId } from "@/lib/sections";
 import { IMPORT_COLUMN_HINTS, type ImportPreview } from "@/lib/import-cards";
 import { resolveFieldDefs } from "@/lib/anki-note-fields";
+import { PersistenceBanner } from "@/components/persistence-banner";
+import { ImportFileButton } from "@/app/admin/admin-ui";
 import { TemplateEditor } from "./template-editor";
 import { FieldDefsEditor } from "./field-editor";
 import { AnkiBrowse } from "./anki-browse";
@@ -36,9 +38,11 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
   const addNoteRef = useRef<(() => void) | null>(null);
 
   const reload = useCallback(() => {
-    fetch(`/api/admin/courses/${courseId}`).then((r) => r.json()).then(setCourse);
-    fetch("/api/admin/audio").then((r) => r.json()).then(setAudioList);
-    fetch("/api/admin/images").then((r) => r.json()).then(setImageList);
+    fetch(`/api/admin/courses/${courseId}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then(setCourse);
+    fetch("/api/admin/audio", { cache: "no-store" }).then((r) => r.json()).then(setAudioList);
+    fetch("/api/admin/images", { cache: "no-store" }).then((r) => r.json()).then(setImageList);
   }, [courseId]);
 
   useEffect(() => {
@@ -53,7 +57,15 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
     fd.set("file", file);
     fd.set("preview", "true");
     const res = await fetch(`/api/admin/courses/${courseId}/import`, { method: "POST", body: fd });
-    const data = await res.json();
+    let data: ImportPreview & { error?: string } = {} as ImportPreview & { error?: string };
+    try {
+      data = (await res.json()) as typeof data;
+    } catch {
+      setPreviewLoading(false);
+      setMsg("Không đọc được file (lỗi server)");
+      setPendingFile(null);
+      return;
+    }
     setPreviewLoading(false);
     if (!res.ok) {
       setMsg(data.error ?? "Không đọc được file");
@@ -70,7 +82,13 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
     fd.set("file", pendingFile);
     fd.set("mode", importMode);
     const res = await fetch(`/api/admin/courses/${courseId}/import`, { method: "POST", body: fd });
-    const data = await res.json();
+    let data: { error?: string; imported?: number; bySection?: Record<string, number> } = {};
+    try {
+      data = (await res.json()) as typeof data;
+    } catch {
+      setMsg("Import lỗi — server không phản hồi. Thử lại.");
+      return;
+    }
     if (res.ok) {
       const parts = data.bySection
         ? Object.entries(data.bySection as Record<string, number>)
@@ -118,6 +136,7 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
   if (tab === "browse") {
     return (
       <div style={{ background: "#ece9e8", minHeight: "100vh", padding: 8 }}>
+        <PersistenceBanner />
         <div className="anki-subnav" style={{ marginBottom: 6 }}>
           <button type="button" className="on">Browse / Nhập liệu</button>
           <button type="button" onClick={() => setTab("import")}>Import Excel</button>
@@ -144,6 +163,9 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
 
   return (
     <div style={{ background: "#ece9e8", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "8px 8px 0" }}>
+        <PersistenceBanner />
+      </div>
       <div className="anki-subnav">
         <button type="button" onClick={() => setTab("browse")}>Browse / Nhập liệu</button>
         <button type="button" className={tab === "import" ? "on" : ""} onClick={() => setTab("import")}>Import Excel</button>
@@ -165,7 +187,11 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
               <label><input type="radio" checked={importMode === "append"} onChange={() => setImportMode("append")} /> Thêm</label>
               <label><input type="radio" checked={importMode === "replace"} onChange={() => setImportMode("replace")} /> Thay thế</label>
             </div>
-            <input type="file" accept=".xlsx,.xls,.csv,.txt" onChange={(e) => { const f = e.target.files?.[0]; if (f) void runPreview(f); e.target.value = ""; }} />
+            <ImportFileButton
+              label="Import Excel / CSV"
+              accept=".xlsx,.xls,.csv,.txt"
+              onFile={(f) => void runPreview(f)}
+            />
             {previewLoading && <p className="text-sm text-stone-500">Đang đọc file…</p>}
             {preview && (
               <div className="border rounded-lg p-4 space-y-3 bg-emerald-50/50">
@@ -179,13 +205,10 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
             <hr className="my-6" />
             <h2 className="font-semibold">Import Anki (.apkg)</h2>
             <p className="text-sm text-stone-600">Import note từ deck Anki (field 1 = mặt trước, field 2 = mặt sau).</p>
-            <input
-              type="file"
+            <ImportFileButton
+              label="Import file .apkg"
               accept=".apkg"
-              onChange={async (e) => {
-                const f = e.target.files?.[0];
-                e.target.value = "";
-                if (!f) return;
+              onFile={async (f) => {
                 const fd = new FormData();
                 fd.set("file", f);
                 fd.set("section", "vocabulary");
@@ -213,12 +236,22 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
           <section className="space-y-6">
             <div>
               <h2 className="font-semibold">Hình ảnh</h2>
-              <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onImageUpload(f); }} />
+              <ImportFileButton
+                label="Upload ảnh"
+                accept="image/*"
+                variant="secondary"
+                onFile={(f) => void onImageUpload(f)}
+              />
               <ul className="text-xs mt-2">{imageList.map((a) => <li key={a.name}>{a.name}</li>)}</ul>
             </div>
             <div>
               <h2 className="font-semibold">Âm thanh</h2>
-              <input type="file" accept="audio/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onAudioUpload(f); }} />
+              <ImportFileButton
+                label="Upload audio"
+                accept="audio/*"
+                variant="secondary"
+                onFile={(f) => void onAudioUpload(f)}
+              />
               <ul className="text-xs mt-2">{audioList.map((a) => <li key={a.name}>{a.name}</li>)}</ul>
             </div>
           </section>
@@ -231,6 +264,7 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
             </p>
             <FieldDefsEditor courseId={courseId} initial={resolveFieldDefs(course.fieldDefs)} onSaved={reload} />
             <TemplateEditor
+              key={`tpl-${course.id}-${course.frontTemplate?.length ?? 0}-${course.backTemplate?.length ?? 0}`}
               courseId={courseId}
               initial={{ frontTemplate: course.frontTemplate, backTemplate: course.backTemplate, cardCss: course.cardCss }}
               fieldNames={resolveFieldDefs(course.fieldDefs)}

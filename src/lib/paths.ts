@@ -1,14 +1,22 @@
 import path from "path";
 import { mkdir } from "fs/promises";
 
-/** Thư mục dữ liệu persistent (Render disk: /var/data) */
+/** Thư mục dữ liệu persistent (Render disk: /var/data) — chủ yếu cho upload */
 export function getDataDir(): string {
-  return process.env.DATA_DIR?.trim() || path.join(process.cwd(), "prisma");
+  return process.env.DATA_DIR?.trim() || path.join(process.cwd(), "data");
+}
+
+export function getDatabaseUrl(): string {
+  return process.env.DATABASE_URL?.trim() || "file:./dev.db";
+}
+
+export function isPostgresDatabase(url = getDatabaseUrl()): boolean {
+  return url.startsWith("postgresql://") || url.startsWith("postgres://");
 }
 
 /** SQLite file path từ DATABASE_URL hoặc mặc định */
 export function getSqliteFilePath(): string {
-  const url = process.env.DATABASE_URL ?? "file:./dev.db";
+  const url = getDatabaseUrl();
   if (url.startsWith("file:")) {
     const relative = url.replace(/^file:/, "").replace(/^\.\//, "");
     if (path.isAbsolute(relative)) return relative;

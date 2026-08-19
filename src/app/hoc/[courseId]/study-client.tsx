@@ -1,46 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { HskVocabStudy } from "@/components/hsk-vocab-study";
 import { SentenceOrderStudy } from "@/components/sentence-order-study";
 import { isAccessLocked, LockScreen, TrialBanner, useAccess } from "@/components/access-ui";
-import { parseSectionValue, STUDY_SECTIONS, type StudySectionId } from "@/lib/sections";
+import { lockedSectionForCourse, STUDY_SECTIONS, type StudySectionId } from "@/lib/sections";
 import type { DeckStats } from "@/components/anki-deck-overview";
 
 type StudyMode = "review" | "all" | "new";
 
-type CourseMeta = {
+type Props = {
+  courseId: string;
   title: string;
   primarySection: string | null;
+  hskLevel: string | null;
 };
 
-export function StudyClient({ courseId }: { courseId: string }) {
+export function StudyClient({ courseId, title, primarySection, hskLevel }: Props) {
   const { access, loading: accessLoading } = useAccess();
-  const [course, setCourse] = useState<CourseMeta | null>(null);
-  const [section, setSection] = useState<StudySectionId>("vocabulary");
+  const lockedSection = lockedSectionForCourse({ primarySection, hskLevel });
+  const singleSection = lockedSection !== null;
+  const [section, setSection] = useState<StudySectionId>(lockedSection ?? "vocabulary");
   const [mode, setMode] = useState<StudyMode>("review");
   const [stats, setStats] = useState<DeckStats>({ due: 0, new: 0, queue: 0, learning: 0, total: 0 });
 
-  useEffect(() => {
-    fetch(`/api/courses/${courseId}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((json: { title?: string; primarySection?: string | null } | null) => {
-        if (!json) return;
-        setCourse({ title: json.title ?? "Bộ thẻ", primarySection: json.primarySection ?? null });
-        if (json.primarySection) {
-          setSection(parseSectionValue(json.primarySection));
-        }
-      })
-      .catch(() => {});
-  }, [courseId]);
+  const activeSection = singleSection ? lockedSection! : section;
 
   const handleStats = useCallback((s: DeckStats) => {
     setStats(s);
   }, []);
 
-  const singleSection = Boolean(course?.primarySection);
-  const sectionLabel = STUDY_SECTIONS.find((s) => s.id === section)?.label;
+  const sectionLabel = STUDY_SECTIONS.find((s) => s.id === activeSection)?.label;
 
   if (accessLoading) return <p className="text-stone-500">Đang tải...</p>;
   if (isAccessLocked(access)) return <LockScreen access={access!} />;
@@ -51,9 +42,7 @@ export function StudyClient({ courseId }: { courseId: string }) {
         <Link href="/hoc" className="text-sm text-stone-500 hover:text-stone-800">
           ← Bộ thẻ
         </Link>
-        <h1 className="text-xl font-bold text-stone-900 mt-1">
-          {course?.title ?? "Đang tải…"}
-        </h1>
+        <h1 className="text-xl font-bold text-stone-900 mt-1">{title}</h1>
         {singleSection && sectionLabel && (
           <p className="text-sm text-stone-500 mt-0.5">{sectionLabel}</p>
         )}
@@ -85,13 +74,13 @@ export function StudyClient({ courseId }: { courseId: string }) {
 
       <StudyStatsPanel />
 
-      {section === "sentence_order" ? (
+      {activeSection === "sentence_order" ? (
         <SentenceOrderStudy courseId={courseId} mode={mode} onModeChange={setMode} />
       ) : (
         <HskVocabStudy
-          key={`${section}-${mode}`}
+          key={`${activeSection}-${mode}`}
           courseId={courseId}
-          section={section}
+          section={activeSection as "vocabulary" | "grammar" | "common"}
           mode={mode}
           onModeChange={setMode}
           onStats={handleStats}

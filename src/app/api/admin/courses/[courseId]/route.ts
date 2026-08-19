@@ -3,6 +3,8 @@ import { serializeFieldDefEntries, type FieldDefEntry } from "@/lib/field-defs";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 type RouteContext = { params: Promise<{ courseId: string }> };
 
 export async function GET(_req: Request, context: RouteContext) {

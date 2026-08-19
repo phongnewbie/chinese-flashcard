@@ -1,10 +1,11 @@
 import { auth } from "@/auth";
 import { AppHeader } from "@/components/app-header";
 import { DeviceGate } from "@/components/device-gate";
+import { prisma } from "@/lib/db";
 import { StudyClient } from "./study-client";
 import { isAdminEmail } from "@/lib/admin";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 type PageProps = { params: Promise<{ courseId: string }> };
 
@@ -14,6 +15,12 @@ export default async function StudyPage({ params }: PageProps) {
 
   const { courseId } = await params;
   const isAdmin = session.user.email ? isAdminEmail(session.user.email) : false;
+
+  const course = await prisma.course.findFirst({
+    where: { id: courseId, published: true },
+    select: { id: true, title: true, primarySection: true, hskLevel: true },
+  });
+  if (!course) notFound();
 
   return (
     <>
@@ -28,7 +35,12 @@ export default async function StudyPage({ params }: PageProps) {
               </Link>
             </div>
           )}
-          <StudyClient courseId={courseId} />
+          <StudyClient
+            courseId={courseId}
+            title={course.title}
+            primarySection={course.primarySection}
+            hskLevel={course.hskLevel}
+          />
         </main>
       </DeviceGate>
     </>

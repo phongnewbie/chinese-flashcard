@@ -11,6 +11,19 @@ import { NextResponse } from "next/server";
 type RouteContext = { params: Promise<{ courseId: string }> };
 
 export async function POST(req: Request, context: RouteContext) {
+  try {
+    return await handleImport(req, context);
+  } catch (err) {
+    console.error("[import]", err);
+    const message =
+      err instanceof Error && err.message.includes("transaction")
+        ? "Import quá nhiều thẻ hoặc mạng chậm — thử lại hoặc chia file nhỏ hơn."
+        : "Lỗi server khi import";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+async function handleImport(req: Request, context: RouteContext) {
   const { error: authError } = await requireAdmin();
   if (authError) return authError;
 
@@ -52,38 +65,42 @@ export async function POST(req: Request, context: RouteContext) {
   });
   let order = replace ? 0 : (maxOrder._max.sortOrder ?? 0);
 
-  await prisma.$transaction(async (tx) => {
-    if (replace) {
-      await tx.flashcard.deleteMany({ where: { courseId } });
-      order = 0;
-    }
-    for (const card of result.cards) {
-      order += 1;
-      await tx.flashcard.create({
-        data: {
-          courseId,
-          section: card.section,
-          front: card.front,
-          back: card.back,
-          pinyin: card.pinyin ?? null,
-          audioUrl: resolveAudioUrl(card.audioUrl, audioBase) ?? null,
-          extraFields: stringifyExtraFields(card.extraFields ?? {}),
-          sortOrder: order,
-        },
-      });
-    }
+  const rows = result.cards.map((card, i) => ({
+    courseId,
+    section: card.section,
+    front: card.front,
+    back: card.back,
+    pinyin: card.pinyin ?? null,
+    audioUrl: resolveAudioUrl(card.audioUrl, audioBase) ?? null,
+    extraFields: stringifyExtraFields(card.extraFields ?? {}),
+    sortOrder: order + i + 1,
+  }));
 
-    const mergedDefs = mergeFieldDefs(
-      parseFieldDefs(course.fieldDefs),
-      result.cards.map((c) => c.extraFields ?? {}),
-    );
-    if (mergedDefs.length > 0) {
-      await tx.course.update({
-        where: { id: courseId },
-        data: { fieldDefs: JSON.stringify(mergedDefs) },
-      });
-    }
-  });
+  const mergedDefs = mergeFieldDefs(
+    parseFieldDefs(course.fieldDefs),
+    result.cards.map((c) => c.extraFields ?? {}),
+  );
+
+  await prisma.$transaction(
+    async (tx) => {
+      if (replace) {
+        await tx.flashcard.deleteMany({ where: { courseId } });
+      }
+
+      const BATCH = 500;
+      for (let i = 0; i < rows.length; i += BATCH) {
+        await tx.flashcard.createMany({ data: rows.slice(i, i + BATCH) });
+      }
+
+      if (mergedDefs.length > 0) {
+        await tx.course.update({
+          where: { id: courseId },
+          data: { fieldDefs: JSON.stringify(mergedDefs) },
+        });
+      }
+    },
+    { timeout: 120_000 },
+  );
 
   return NextResponse.json({
     imported: result.total,

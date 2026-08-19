@@ -5,6 +5,7 @@ import { getCourseTemplates } from "@/lib/card-template";
 import { ensureAppSettings, prisma } from "@/lib/db";
 import { canAccessCourse } from "@/lib/hsk-enrollment";
 import { buildStudyQueue } from "@/lib/study-queue";
+import { lockedSectionForCourse, type StudySectionId } from "@/lib/sections";
 import { NextResponse } from "next/server";
 
 type RouteContext = { params: Promise<{ courseId: string }> };
@@ -28,13 +29,25 @@ export async function GET(req: Request, context: RouteContext) {
   }
 
   const url = new URL(req.url);
-  const section = url.searchParams.get("section") ?? "vocabulary";
   const mode = (url.searchParams.get("mode") ?? "review") as "review" | "new" | "all";
 
   await ensureAppSettings();
   const settings = await prisma.appSetting.findUniqueOrThrow({ where: { id: "default" } });
 
   const course = await prisma.course.findFirst({
+    where: { id: courseId, published: true },
+  });
+
+  if (!course) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const locked = lockedSectionForCourse(course);
+  const section = (locked ??
+    (url.searchParams.get("section") as StudySectionId | null) ??
+    "vocabulary") as StudySectionId;
+
+  const courseWithCards = await prisma.course.findFirst({
     where: { id: courseId, published: true },
     include: {
       cards: {
@@ -44,31 +57,32 @@ export async function GET(req: Request, context: RouteContext) {
     },
   });
 
-  if (!course) {
+  if (!courseWithCards) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const cardTypes = parseCourseCardTypes(course.cardTypes, section);
-  const cardIds = course.cards.map((c) => c.id);
+  const cardTypes = parseCourseCardTypes(courseWithCards.cardTypes, section);
+  const cardIds = courseWithCards.cards.map((c) => c.id);
 
   const reviews = await prisma.cardReview.findMany({
     where: { userId: session.user.id, cardId: { in: cardIds } },
   });
 
   const { queue, stats } = buildStudyQueue({
-    cards: course.cards,
+    cards: courseWithCards.cards,
     cardTypes,
     reviews,
     mode,
     maxNew: settings.maxNewPerDay,
   });
 
-  const templates = getCourseTemplates(course);
+  const templates = getCourseTemplates(courseWithCards);
 
   return NextResponse.json({
-    courseId: course.id,
-    title: course.title,
+    courseId: courseWithCards.id,
+    title: courseWithCards.title,
     section,
+    primarySection: courseWithCards.primarySection,
     mode,
     stats,
     cardTypes,
