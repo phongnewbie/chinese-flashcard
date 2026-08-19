@@ -1,9 +1,42 @@
 import path from "path";
+import { accessSync, constants, mkdirSync } from "fs";
 import { mkdir } from "fs/promises";
 
-/** Thư mục dữ liệu persistent (Render disk: /var/data) — chủ yếu cho upload */
+let resolvedDataDir: string | null = null;
+let resolvedUploadRoot: string | null = null;
+
+function canWriteDir(dir: string): boolean {
+  try {
+    mkdirSync(dir, { recursive: true });
+    accessSync(dir, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function defaultDataDir(): string {
+  return path.join(process.cwd(), "data");
+}
+
+/** Thư mục upload — fallback khi /var/data không gắn disk trên Render. */
 export function getDataDir(): string {
-  return process.env.DATA_DIR?.trim() || path.join(process.cwd(), "data");
+  if (resolvedDataDir) return resolvedDataDir;
+
+  const configured = process.env.DATA_DIR?.trim();
+  if (configured && canWriteDir(configured)) {
+    resolvedDataDir = configured;
+    return configured;
+  }
+
+  if (configured) {
+    console.warn(`[paths] DATA_DIR=${configured} không ghi được — dùng ${defaultDataDir()}`);
+  }
+
+  const fallback = defaultDataDir();
+  mkdirSync(fallback, { recursive: true });
+  resolvedDataDir = fallback;
+  return fallback;
 }
 
 export function getDatabaseUrl(): string {
@@ -27,7 +60,22 @@ export function getSqliteFilePath(): string {
 
 /** Gốc thư mục upload (ảnh + audio) */
 export function getUploadRoot(): string {
-  return process.env.UPLOAD_DIR?.trim() || path.join(process.cwd(), "public", "uploads");
+  if (resolvedUploadRoot) return resolvedUploadRoot;
+
+  const configured = process.env.UPLOAD_DIR?.trim();
+  if (configured && canWriteDir(configured)) {
+    resolvedUploadRoot = configured;
+    return configured;
+  }
+
+  if (configured) {
+    console.warn(`[paths] UPLOAD_DIR=${configured} không ghi được — dùng data/uploads`);
+  }
+
+  const fallback = path.join(getDataDir(), "uploads");
+  mkdirSync(fallback, { recursive: true });
+  resolvedUploadRoot = fallback;
+  return fallback;
 }
 
 export function getImageUploadDir(): string {
@@ -38,7 +86,7 @@ export function getAudioUploadDir(): string {
   return path.join(getUploadRoot(), "audio");
 }
 
-/** Tạo thư mục data + uploads khi khởi động (Render) */
+/** Tạo thư mục data + uploads khi khởi động */
 export async function ensureDataDirs(): Promise<void> {
   const dataDir = getDataDir();
   await mkdir(dataDir, { recursive: true });
