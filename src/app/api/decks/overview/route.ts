@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { isAdminEmail } from "@/lib/admin";
 import { statsForCourse, sumDeckStats, type DeckCountStats } from "@/lib/deck-overview-stats";
+import { getStudentHskLevels } from "@/lib/hsk-enrollment";
 import { categoriesForLevel, HSK_LEVELS } from "@/lib/hsk-levels";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
@@ -13,6 +14,8 @@ export async function GET() {
 
   const userId = session.user.id;
   const isAdmin = session.user.email ? isAdminEmail(session.user.email) : false;
+  const enrolledLevels = isAdmin ? HSK_LEVELS.map((l) => l.id) : await getStudentHskLevels(userId);
+  const hskRestricted = !isAdmin && enrolledLevels.length > 0;
 
   const courses = await prisma.course.findMany({
     where: { published: true, hskLevel: { not: null } },
@@ -82,6 +85,7 @@ export async function GET() {
     return {
       id: level.id,
       label: level.label.toUpperCase(),
+      locked: hskRestricted && !enrolledLevels.includes(level.id),
       stats: sumDeckStats(levelDecks.map((d) => d.stats)),
       categories,
     };
@@ -95,6 +99,8 @@ export async function GET() {
 
   return NextResponse.json({
     isAdmin,
+    enrolledLevels,
+    hskRestricted,
     levels,
     studiedToday,
   });

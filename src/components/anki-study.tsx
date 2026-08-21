@@ -584,7 +584,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
         <p className="text-center text-xs text-stone-500">
 
-          {flipped ? "1–4 đánh giá thẻ" : "Space — lật thẻ"}
+          {flipped ? "1–4 hoặc bấm nút để đánh giá" : "Enter / Space — lật thẻ · bấm Hiện đáp án"}
 
         </p>
 

@@ -5,6 +5,8 @@ import {
   type ImportPreview,
 } from "@/lib/import-cards";
 import { mergeFieldDefs, parseFieldDefs, stringifyExtraFields } from "@/lib/fields";
+import { getSectionPreset } from "@/lib/section-presets";
+import type { StudySectionId } from "@/lib/sections";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -41,7 +43,11 @@ async function handleImport(req: Request, context: RouteContext) {
   }
 
   const buffer = await file.arrayBuffer();
-  const result: ImportPreview = parseImportFile(buffer, file.name);
+  const result: ImportPreview = parseImportFile(
+    buffer,
+    file.name,
+    (course.primarySection as StudySectionId | null) ?? undefined,
+  );
 
   if (result.total === 0) {
     return NextResponse.json(
@@ -77,7 +83,9 @@ async function handleImport(req: Request, context: RouteContext) {
   }));
 
   const mergedDefs = mergeFieldDefs(
-    parseFieldDefs(course.fieldDefs),
+    parseFieldDefs(course.fieldDefs).length > 0
+      ? parseFieldDefs(course.fieldDefs)
+      : getSectionPreset(course.primarySection ?? "vocabulary").fieldDefs.map((f) => f.name),
     result.cards.map((c) => c.extraFields ?? {}),
   );
 

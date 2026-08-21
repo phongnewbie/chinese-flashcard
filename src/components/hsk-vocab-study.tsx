@@ -118,7 +118,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   const current = phase === "study" ? cards[index] : undefined;
   const currentRaw = phase === "study" ? rawCards[index] : undefined;
 
-  const showAnswer = () => setRevealed(true);
+  const showAnswer = useCallback(() => setRevealed(true), []);
 
   const rate = async (rating: 1 | 2 | 3 | 4) => {
     if (!current || !currentRaw) return;
@@ -154,20 +154,30 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (phase !== "study" || !current) return;
-      if (!revealed && e.key === "Enter") {
-        e.preventDefault();
-        showAnswer();
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const target = e.target as HTMLElement;
+      const inTextField =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable;
+
+      if (!revealed) {
+        if (e.key === "Enter" || (e.key === " " && !inTextField)) {
+          e.preventDefault();
+          showAnswer();
+        }
+        return;
       }
-      if (revealed) {
-        if (e.key === "1") void rate(1);
-        if (e.key === "2") void rate(2);
-        if (e.key === "3") void rate(3);
-        if (e.key === "4") void rate(4);
+
+      if (e.key === "1" || e.key === "2" || e.key === "3" || e.key === "4") {
+        e.preventDefault();
+        void rate(Number(e.key) as 1 | 2 | 3 | 4);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [revealed, current, phase, index, cards.length]);
+  }, [revealed, current, phase, index, cards.length, showAnswer]);
 
   if (loading) {
     return <p className="text-center text-stone-500 py-12">Đang tải thẻ…</p>;
@@ -252,7 +262,18 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
       {/* Main content */}
       <div className="mx-4 mb-4 space-y-3">
         {!revealed ? (
-          <div className="hsk-question-card rounded-xl p-5 space-y-4">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={showAnswer}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                showAnswer();
+              }
+            }}
+            className="hsk-question-card rounded-xl p-5 space-y-4 cursor-pointer"
+          >
             <div className="flex gap-3 items-start">
               <span className="text-pink-400 text-2xl font-bold leading-none">?</span>
               <div className={`hsk-hints flex-1 space-y-1 ${section === "grammar" ? "text-xl font-semibold" : "text-base"}`}>
@@ -268,6 +289,14 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
               type="text"
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  showAnswer();
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
               placeholder={ui.placeholder}
               className="hsk-input w-full rounded-lg px-4 py-3 text-lg text-center outline-none"
               autoFocus
@@ -304,14 +333,16 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-lg mx-auto">
-            <RateBtn label="Again" sub={intervals.again} tone="red" onClick={() => void rate(1)} />
-            <RateBtn label="Hard" sub={intervals.hard} tone="amber" onClick={() => void rate(2)} />
-            <RateBtn label="Good" sub={intervals.good} tone="green" onClick={() => void rate(3)} />
-            <RateBtn label="Easy" sub={intervals.easy} tone="blue" onClick={() => void rate(4)} />
+            <RateBtn label="Again" sub={intervals.again} tone="red" hotkey="1" onClick={() => void rate(1)} />
+            <RateBtn label="Hard" sub={intervals.hard} tone="amber" hotkey="2" onClick={() => void rate(2)} />
+            <RateBtn label="Good" sub={intervals.good} tone="green" hotkey="3" onClick={() => void rate(3)} />
+            <RateBtn label="Easy" sub={intervals.easy} tone="blue" hotkey="4" onClick={() => void rate(4)} />
           </div>
         )}
 
         <p className="text-center text-xs text-stone-500">
+          {revealed ? "1–4 hoặc bấm nút để đánh giá" : "Enter / Space — lật thẻ · bấm Hiện đáp án"}
+          {" · "}
           {index + 1} / {cards.length}
         </p>
       </div>
@@ -456,11 +487,13 @@ function RateBtn({
   label,
   sub,
   tone,
+  hotkey,
   onClick,
 }: {
   label: string;
   sub: string;
   tone: "red" | "amber" | "green" | "blue";
+  hotkey: string;
   onClick: () => void;
 }) {
   const tones = {
@@ -477,6 +510,7 @@ function RateBtn({
     >
       <span className="block">{label}</span>
       <span className="block text-[10px] opacity-70">{sub}</span>
+      <span className="block text-[10px] opacity-50 mt-0.5">{hotkey}</span>
     </button>
   );
 }

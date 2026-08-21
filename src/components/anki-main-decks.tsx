@@ -27,12 +27,15 @@ type CategoryRow = {
 type LevelRow = {
   id: string;
   label: string;
+  locked?: boolean;
   stats: DeckCountStats;
   categories: CategoryRow[];
 };
 
 type OverviewData = {
   isAdmin: boolean;
+  enrolledLevels?: string[];
+  hskRestricted?: boolean;
   levels: LevelRow[];
   studiedToday: number;
 };
@@ -88,8 +91,9 @@ export function AnkiMainDecks() {
   const toggleCat = (key: string) =>
     setExpandedCats((p) => ({ ...p, [key]: !p[key] }));
 
-  const openStudy = (deckId: string) => {
+  const openStudy = (deckId: string, levelLocked?: boolean) => {
     if (!data?.isAdmin && !canUserStudy(access)) return;
+    if (levelLocked && !data?.isAdmin) return;
     router.push(`/hoc/${deckId}`);
   };
 
@@ -201,6 +205,12 @@ export function AnkiMainDecks() {
         </div>
       )}
 
+      {data.hskRestricted && !isAdmin && (
+        <p className="text-sm text-stone-600 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 mb-3">
+          Bạn chỉ được học các cấp HSK admin đã gán. Các cấp khác bị khóa 🔒
+        </p>
+      )}
+
       {msg && (
         <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 mb-3">
           {msg}
@@ -272,6 +282,7 @@ export function AnkiMainDecks() {
                   key={level.id}
                   level={level}
                   levelOpen={levelOpen}
+                  levelLocked={!!level.locked && !isAdmin}
                   expandedCats={expandedCats}
                   isAdmin={isAdmin}
                   studyAllowed={studyAllowed}
@@ -320,6 +331,7 @@ export function AnkiMainDecks() {
 function LevelBlock({
   level,
   levelOpen,
+  levelLocked,
   expandedCats,
   isAdmin,
   studyAllowed,
@@ -340,13 +352,14 @@ function LevelBlock({
 }: {
   level: LevelRow;
   levelOpen: boolean;
+  levelLocked: boolean;
   expandedCats: Record<string, boolean>;
   isAdmin: boolean;
   studyAllowed: boolean;
   dragDeck: DeckRow | null;
   onToggleLevel: () => void;
   onToggleCat: (key: string) => void;
-  onOpenStudy: (id: string) => void;
+  onOpenStudy: (id: string, levelLocked?: boolean) => void;
   onAddDeck: (levelId: string, catId: string) => void;
   onDragStart: (d: DeckRow) => void;
   onDragEnd: () => void;
@@ -358,12 +371,18 @@ function LevelBlock({
   onRenameSubmit: (id: string) => void;
   onRenameCancel: () => void;
 }) {
+  const deckStudyAllowed = studyAllowed && !levelLocked;
+
   return (
     <>
-      <tr className="anki-deck-row level" onClick={onToggleLevel}>
+      <tr className={`anki-deck-row level ${levelLocked ? "locked" : ""}`} onClick={onToggleLevel}>
         <td className="anki-deck-name">
           <span className="anki-tree-toggle">{levelOpen ? "▾" : "▸"}</span>
+          {levelLocked && <span className="anki-lock-icon">🔒</span>}
           <strong>{level.label}</strong>
+          {levelLocked && (
+            <span className="anki-deck-meta ml-2 text-stone-400">Chưa được mở</span>
+          )}
         </td>
         <StatsCells stats={level.stats} />
         {isAdmin && <td />}
@@ -380,10 +399,11 @@ function LevelBlock({
               catLabel={catLabel}
               catOpen={catOpen}
               isAdmin={isAdmin}
-              studyAllowed={studyAllowed}
+              studyAllowed={deckStudyAllowed}
+              levelLocked={levelLocked}
               dragDeck={dragDeck}
               onToggleCat={() => onToggleCat(catKey)}
-              onOpenStudy={onOpenStudy}
+              onOpenStudy={(id) => onOpenStudy(id, levelLocked)}
               onAddDeck={() => onAddDeck(level.id, cat.id)}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
@@ -407,6 +427,7 @@ function CategoryBlock({
   catOpen,
   isAdmin,
   studyAllowed,
+  levelLocked,
   dragDeck,
   onToggleCat,
   onOpenStudy,
@@ -426,6 +447,7 @@ function CategoryBlock({
   catOpen: boolean;
   isAdmin: boolean;
   studyAllowed: boolean;
+  levelLocked: boolean;
   dragDeck: DeckRow | null;
   onToggleCat: () => void;
   onOpenStudy: (id: string) => void;
@@ -442,7 +464,7 @@ function CategoryBlock({
 }) {
   return (
     <>
-      <tr className="anki-deck-row category" onClick={onToggleCat}>
+      <tr className={`anki-deck-row category ${levelLocked ? "locked" : ""}`} onClick={onToggleCat}>
         <td className="anki-deck-name indent-1">
           <span className="anki-tree-toggle">{catOpen ? "▾" : "▸"}</span>
           {catLabel}
@@ -484,6 +506,7 @@ function CategoryBlock({
             >
               {isAdmin && <span className="anki-drag-handle" title="Kéo để sắp xếp">⠿</span>}
               {!isAdmin && !studyAllowed && <span className="anki-lock-icon">🔒</span>}
+              {levelLocked && isAdmin && <span className="anki-lock-icon" title="Học viên chưa được gán cấp này">🔒</span>}
               {isAdmin && renamingId === deck.id ? (
                 <input
                   type="text"

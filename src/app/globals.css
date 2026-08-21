@@ -893,6 +893,11 @@ body {
   background: #fcfcfc;
 }
 
+.anki-deck-row.level.locked,
+.anki-deck-row.category.locked {
+  opacity: 0.55;
+}
+
 .anki-deck-row.deck.locked {
   opacity: 0.65;
 }

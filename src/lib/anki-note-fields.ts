@@ -1,17 +1,17 @@
 import { parseExtraFields, parseFieldDefs, stringifyExtraFields } from "@/lib/fields";
 import { getFieldStyle, resolveFieldDefEntries, resolveFieldNames } from "@/lib/field-defs";
+import { getSectionPreset } from "@/lib/section-presets";
 
-/** Thứ tự field mặc định — TỪ VỰNG HSK (9 CẤP) */
+/** Thứ tự field mặc định — TỪ VỰNG (khớp Excel mẫu) */
 export const DEFAULT_NOTE_TYPE_FIELDS = [
   "CHỮ HÁN",
   "PINYIN",
   "HÁN VIỆT",
+  "LOẠI TỪ",
   "NGHĨA",
-  "VÍ DỤ",
+  "ĐẶT CÂU",
   "ẢNH",
   "GHI CHÚ",
-  "CÁCH NHỚ",
-  "CẤP ĐỘ",
   "ÂM THANH",
 ] as const;
 
@@ -20,7 +20,15 @@ export const ANKI_HSK_FIELD_ORDER = [...DEFAULT_NOTE_TYPE_FIELDS];
 
 export const REQUIRED_NOTE_FIELDS = new Set(["CHỮ HÁN", "NGHĨA"]);
 
-const MULTILINE_LABELS = new Set(["NGHĨA", "VÍ DỤ", "GHI CHÚ", "CÁCH NHỚ", "CÁCH VIẾT"]);
+const MULTILINE_LABELS = new Set([
+  "NGHĨA",
+  "VÍ DỤ",
+  "ĐẶT CÂU",
+  "GIẢI THÍCH",
+  "GHI CHÚ",
+  "CÁCH NHỚ",
+  "CÁCH VIẾT",
+]);
 const IMAGE_LABELS = new Set(["ẢNH", "Hình ảnh", "Image"]);
 
 /** Danh sách field của note type — dùng default nếu chưa lưu */
@@ -57,8 +65,14 @@ export type FlashcardRecord = {
 
 const CORE_MAP: Record<string, { key: string; multiline?: boolean }> = {
   "CHỮ HÁN": { key: "front" },
+  "CẤU TRÚC": { key: "front" },
+  "MẢNH CÂU": { key: "front" },
+  "TÌNH HUỐNG": { key: "front" },
   PINYIN: { key: "pinyin" },
   NGHĨA: { key: "back", multiline: true },
+  "GIẢI THÍCH": { key: "back", multiline: true },
+  "CÂU ĐÚNG": { key: "back", multiline: true },
+  "CÂU TRẢ LỜI": { key: "back" },
   "ÂM THANH": { key: "audioUrl" },
 };
 
@@ -182,13 +196,7 @@ export function noteFieldsToCardPayload(
 }
 
 export function noteTypeLabel(section: string): string {
-  const map: Record<string, string> = {
-    vocabulary: "TỪ VỰNG HSK (9 CẤP)",
-    grammar: "NGỮ PHÁP",
-    sentence_order: "SẮP XẾP CÂU",
-    common: "THÔNG DỤNG",
-  };
-  return map[section] ?? section;
+  return getSectionPreset(section).noteTypeLabel;
 }
 
 export function getTags(card: FlashcardRecord): string {

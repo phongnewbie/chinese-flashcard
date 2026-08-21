@@ -4,6 +4,7 @@ import {
   type HskCategoryId,
 } from "@/lib/hsk-levels";
 import { requireAdmin } from "@/lib/api-auth";
+import { courseDefaultsForSection } from "@/lib/section-presets";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -41,6 +42,7 @@ export async function POST(req: Request) {
   const title = customTitle;
 
   const maxOrder = await prisma.course.aggregate({ _max: { sortOrder: true } });
+  const defaults = courseDefaultsForSection(primarySection);
 
   const course = await prisma.course.create({
     data: {
@@ -50,6 +52,11 @@ export async function POST(req: Request) {
       lessonNumber,
       published: true,
       sortOrder: (maxOrder._max.sortOrder ?? 0) + 1,
+      fieldDefs: defaults.fieldDefs,
+      frontTemplate: defaults.frontTemplate,
+      backTemplate: defaults.backTemplate,
+      cardCss: defaults.cardCss,
+      cardTypes: defaults.cardTypes,
     },
     include: { _count: { select: { cards: true } } },
   });

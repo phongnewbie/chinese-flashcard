@@ -1,4 +1,8 @@
 import * as XLSX from "xlsx";
+import {
+  coreFieldForSection,
+  IMPORT_FIELD_ALIASES,
+} from "@/lib/section-presets";
 import { parseSectionValue, sectionFromSheetName, type StudySectionId } from "@/lib/sections";
 
 export type ParsedCard = {
@@ -39,6 +43,7 @@ const COLUMN_HINTS = {
   ],
   front: [
     "front", "chu han", "chữ hán", "han tu", "hanzi", "汉字", "tu", "từ",
+    "tieng trung", "tiếng trung",
     "tu trung", "từ trung", "cum tu", "cụm từ", "cau hoi", "câu hỏi",
     "cau", "câu", "cau trung", "cau tieng trung", "noi dung", "nội dung",
     "cau truc", "cấu trúc", "mau cau", "mẫu câu", "de bai", "đề bài",
@@ -65,8 +70,47 @@ const COLUMN_HINTS = {
     "file audio", "mp3", "link am thanh", "link audio", "ten file", "tên file",
     "file mp3", "am thanh mp3",
   ],
-  example: ["vi du", "ví dụ", "example", "cau vi du", "câu ví dụ", "vd"],
+  example: ["vi du", "ví dụ", "example", "cau vi du", "câu ví dụ", "vd", "dat cau", "đặt câu"],
 } as const;
+
+function canonicalFieldName(header: string): string {
+  const norm = normHeader(header);
+  return IMPORT_FIELD_ALIASES[norm] ?? header.trim();
+}
+
+function applyCanonicalRow(
+  section: StudySectionId,
+  fields: Record<string, string>,
+): ParsedCard | null {
+  let front = "";
+  let back = "";
+  let pinyin = "";
+  let audioUrl = "";
+  const extraFields: Record<string, string> = {};
+
+  for (const [header, value] of Object.entries(fields)) {
+    if (!value?.trim()) continue;
+    const canonical = canonicalFieldName(header);
+    const core = coreFieldForSection(section, canonical);
+    if (core === "front") front = value.trim();
+    else if (core === "back") back = value.trim();
+    else if (core === "pinyin") pinyin = value.trim();
+    else if (core === "audioUrl") audioUrl = value.trim();
+    else extraFields[canonical] = value.trim();
+  }
+
+  if (!front || !back) return null;
+  if (/^\d+$/.test(front) && front.length <= 4) return null;
+
+  return {
+    section,
+    front,
+    back,
+    pinyin: pinyin || undefined,
+    audioUrl: audioUrl || undefined,
+    extraFields: Object.keys(extraFields).length > 0 ? extraFields : undefined,
+  };
+}
 
 type Field = keyof typeof COLUMN_HINTS;
 
@@ -164,6 +208,15 @@ function rowToCard(
   const used = new Set<string>();
   const section = pickSection(map, defaultSection, used);
 
+  const rawFields: Record<string, string> = {};
+  for (const col of map) {
+    if (SKIP_HEADERS.has(col.norm) || !col.value) continue;
+    rawFields[col.key.trim()] = col.value;
+  }
+
+  const canonical = applyCanonicalRow(section, rawFields);
+  if (canonical) return canonical;
+
   let front = pickBestField(map, "front", used);
   let back = pickBestField(map, "back", used);
   let pinyin = pickBestField(map, "pinyin", used);
@@ -182,7 +235,7 @@ function rowToCard(
   const extraFields: Record<string, string> = {};
   for (const col of map) {
     if (used.has(col.key) || !col.value || SKIP_HEADERS.has(col.norm)) continue;
-    extraFields[col.key.trim()] = col.value;
+    extraFields[canonicalFieldName(col.key)] = col.value;
   }
 
   if (!front || !back) return null;
@@ -290,7 +343,7 @@ export function parseNotepadText(text: string): ParsedCard[] {
   return cards;
 }
 
-export function parseExcelBuffer(buffer: ArrayBuffer): ParsedCard[] {
+export function parseExcelBuffer(buffer: ArrayBuffer, deckSection?: StudySectionId): ParsedCard[] {
   const wb = XLSX.read(buffer, { type: "array" });
   const cards: ParsedCard[] = [];
 
@@ -298,7 +351,7 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParsedCard[] {
     const sheet = wb.Sheets[sheetName];
     if (!sheet) continue;
 
-    const sheetSection = sectionFromSheetName(sheetName);
+    const sheetSection = sectionFromSheetName(sheetName) ?? deckSection ?? "vocabulary";
     const rawRows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "" });
     if (rawRows.length === 0) continue;
 
@@ -353,13 +406,14 @@ export function parseExcelBuffer(buffer: ArrayBuffer): ParsedCard[] {
 export function parseImportFile(
   buffer: ArrayBuffer,
   fileName: string,
+  deckSection?: StudySectionId,
 ): ImportPreview {
   const lower = fileName.toLowerCase();
   const warnings: string[] = [];
   let cards: ParsedCard[];
 
   if (lower.endsWith(".xlsx") || lower.endsWith(".xls") || lower.endsWith(".csv")) {
-    cards = parseExcelBuffer(buffer);
+    cards = parseExcelBuffer(buffer, deckSection);
     if (cards.length === 0) {
       warnings.push("Không đọc được dòng nào từ Excel/CSV. Kiểm tra dòng tiêu đề cột.");
     }
@@ -434,9 +488,10 @@ export function resolveAudioUrl(
 
 export const IMPORT_COLUMN_HINTS = {
   section: ["phần", "loại", "section", "dạng bài"],
-  front: ["Câu hỏi", "Chữ Hán", "Cụm từ", "Mảnh câu", "Cấu trúc", "Nội dung"],
-  back: ["Đáp án", "Nghĩa", "Giải thích", "Câu đúng", "Dịch", "Trả lời"],
-  pinyin: ["Phiên âm", "pinyin"],
+  front: ["Tiếng Trung", "Câu hỏi", "Chữ Hán", "Cụm từ", "Mảnh câu", "Cấu trúc", "Tình huống"],
+  back: ["Nghĩa tiếng Việt", "Đáp án", "Nghĩa", "Giải thích", "Câu đúng", "Câu trả lời"],
+  pinyin: ["Pinyin", "Phiên âm"],
   audio: ["Âm thanh", "mp3", "Tên file"],
-  example: ["Ví dụ", "VD"],
+  example: ["Đặt câu", "Ví dụ", "VD"],
+  extra: ["Nghĩa hán việt", "Loại từ", "Hán Việt"],
 };
