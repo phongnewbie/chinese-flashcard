@@ -1,5 +1,17 @@
 import { parseFieldDefs } from "@/lib/fields";
-import { DEFAULT_NOTE_TYPE_FIELDS } from "@/lib/anki-note-fields";
+
+/** Thứ tự field mặc định — TỪ VỰNG (khớp Excel mẫu) */
+export const DEFAULT_NOTE_TYPE_FIELDS = [
+  "CHỮ HÁN",
+  "PINYIN",
+  "HÁN VIỆT",
+  "LOẠI TỪ",
+  "NGHĨA",
+  "ĐẶT CÂU",
+  "ẢNH",
+  "GHI CHÚ",
+  "ÂM THANH",
+] as const;
 
 export type FieldDefEntry = {
   name: string;

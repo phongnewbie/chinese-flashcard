@@ -1,22 +1,22 @@
 import { parseExtraFields, parseFieldDefs, stringifyExtraFields } from "@/lib/fields";
-import { getFieldStyle, resolveFieldDefEntries, resolveFieldNames } from "@/lib/field-defs";
-import { getSectionPreset } from "@/lib/section-presets";
+import {
+  DEFAULT_NOTE_TYPE_FIELDS,
+  getFieldStyle,
+  resolveFieldDefEntries,
+  resolveFieldNames,
+} from "@/lib/field-defs";
 
-/** Thứ tự field mặc định — TỪ VỰNG (khớp Excel mẫu) */
-export const DEFAULT_NOTE_TYPE_FIELDS = [
-  "CHỮ HÁN",
-  "PINYIN",
-  "HÁN VIỆT",
-  "LOẠI TỪ",
-  "NGHĨA",
-  "ĐẶT CÂU",
-  "ẢNH",
-  "GHI CHÚ",
-  "ÂM THANH",
-] as const;
+export { DEFAULT_NOTE_TYPE_FIELDS };
 
 /** @deprecated use DEFAULT_NOTE_TYPE_FIELDS */
 export const ANKI_HSK_FIELD_ORDER = [...DEFAULT_NOTE_TYPE_FIELDS];
+
+const NOTE_TYPE_LABELS: Record<string, string> = {
+  vocabulary: "TỪ VỰNG HSK",
+  grammar: "NGỮ PHÁP",
+  sentence_order: "SẮP XẾP CÂU",
+  common: "GIAO TIẾP THÔNG DỤNG",
+};
 
 export const REQUIRED_NOTE_FIELDS = new Set(["CHỮ HÁN", "NGHĨA"]);
 
@@ -196,7 +196,7 @@ export function noteFieldsToCardPayload(
 }
 
 export function noteTypeLabel(section: string): string {
-  return getSectionPreset(section).noteTypeLabel;
+  return NOTE_TYPE_LABELS[section] ?? section;
 }
 
 export function getTags(card: FlashcardRecord): string {
