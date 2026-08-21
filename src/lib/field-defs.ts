@@ -92,7 +92,7 @@ export function resolveFieldDefEntries(raw: string | null | undefined): FieldDef
   return DEFAULT_NOTE_TYPE_FIELDS.map((name) => ({
     name,
     ...DEFAULT_FIELD_SETTINGS,
-    sortField: name === "Tiếng Trung" || name === "CHỮ HÁN",
+    sortField: name === "Tiếng Trung",
   }));
 }
 
