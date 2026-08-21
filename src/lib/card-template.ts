@@ -125,12 +125,20 @@ export function toCardFields(card: {
   extraFields?: string | null;
 }): TemplateFields {
   const extras = parseExtraFields(card.extraFields);
+  const vocabExtras = {
+    "Nghĩa hán việt": extras["Nghĩa hán việt"] ?? extras["HÁN VIỆT"] ?? "",
+    "Loại từ": extras["Loại từ"] ?? extras["LOẠI TỪ"] ?? "",
+    "Đặt câu": extras["Đặt câu"] ?? extras["ĐẶT CÂU"] ?? extras["VÍ DỤ"] ?? "",
+  };
   return {
     Front: card.front,
     Back: card.back,
     Pinyin: card.pinyin ?? "",
     Audio: card.audioUrl ?? "",
     Section: card.section ?? "",
+    "Tiếng Trung": card.front,
+    "Nghĩa tiếng Việt": card.back,
     ...extras,
+    ...vocabExtras,
   };
 }

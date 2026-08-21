@@ -12,6 +12,7 @@ import {
   type NoteFieldRow,
 } from "@/lib/anki-note-fields";
 import { STUDY_SECTIONS, sectionLabel, type StudySectionId } from "@/lib/sections";
+import { requiredFieldLabels } from "@/lib/section-presets";
 import { AnkiFieldsDialog } from "./anki-fields-dialog";
 import "./anki-browse.css";
 
@@ -36,6 +37,8 @@ export function AnkiBrowse({
   onOpenSettings,
   onFieldDefsSaved,
 }: Props) {
+  const sectionForFields = (defaultSection ?? "vocabulary") as StudySectionId;
+  const required = requiredFieldLabels(sectionForFields);
   const fieldDefs = useMemo(() => resolveFieldDefs(fieldDefsRaw), [fieldDefsRaw]);
   const [localFieldDefsRaw, setLocalFieldDefsRaw] = useState<string | null>(fieldDefsRaw);
   const [fieldsDialogOpen, setFieldsDialogOpen] = useState(false);
@@ -108,7 +111,7 @@ export function AnkiBrowse({
     setSaving(true);
     const payload = noteFieldsToCardPayload(editSection, fields);
     if (!payload.front || !payload.back) {
-      onMsg("CHỮ HÁN và NGHĨA không được trống");
+      onMsg(`${required.front} và ${required.back} không được trống`);
       setSaving(false);
       return;
     }
@@ -135,10 +138,10 @@ export function AnkiBrowse({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         section,
-        front: "新",
-        back: "nghĩa mới",
-        pinyin: "xīn",
-        extraFields: { "HÁN VIỆT": "Tân" },
+        front: "",
+        back: "",
+        pinyin: "",
+        extraFields: {},
       }),
     });
     const card = await res.json();
@@ -194,8 +197,14 @@ export function AnkiBrowse({
     }
   };
 
-  const previewFront = fields.find((f) => f.label === "CHỮ HÁN" || f.key === "front")?.value ?? selected?.front ?? "";
-  const previewBack = fields.find((f) => f.label === "NGHĨA" || f.key === "back")?.value ?? selected?.back ?? "";
+  const previewFront =
+    fields.find((f) => f.label === "Tiếng Trung" || f.label === "CHỮ HÁN" || f.key === "front")?.value ??
+    selected?.front ??
+    "";
+  const previewBack =
+    fields.find((f) => f.label === "Nghĩa tiếng Việt" || f.label === "NGHĨA" || f.key === "back")?.value ??
+    selected?.back ??
+    "";
 
   return (
     <>
@@ -506,10 +515,17 @@ export function AnkiBrowse({
                       <div className="anki-field-body">
                         {f.multiline ? (
                           <textarea
-                            className={f.label === "VÍ DỤ" || f.label === "GHI CHÚ" ? "tall" : ""}
+                            className={
+                              f.label === "VÍ DỤ" ||
+                              f.label === "Đặt câu" ||
+                              f.label === "ĐẶT CÂU" ||
+                              f.label === "GHI CHÚ"
+                                ? "tall"
+                                : ""
+                            }
                             value={f.value}
                             onChange={(e) => updateField(f.key, e.target.value)}
-                            rows={f.label === "VÍ DỤ" ? 5 : 3}
+                            rows={f.label === "VÍ DỤ" || f.label === "Đặt câu" || f.label === "ĐẶT CÂU" ? 5 : 3}
                             placeholder={f.placeholder}
                             style={{
                               fontFamily: f.fontFamily ?? "Segoe UI",

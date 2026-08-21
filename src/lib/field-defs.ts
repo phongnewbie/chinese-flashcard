@@ -1,16 +1,13 @@
 import { parseFieldDefs } from "@/lib/fields";
 
-/** Thứ tự field mặc định — TỪ VỰNG (khớp Excel mẫu) */
+/** Thứ tự field mặc định — TỪ VỰNG (khớp Excel) */
 export const DEFAULT_NOTE_TYPE_FIELDS = [
-  "CHỮ HÁN",
-  "PINYIN",
-  "HÁN VIỆT",
-  "LOẠI TỪ",
-  "NGHĨA",
-  "ĐẶT CÂU",
-  "ẢNH",
-  "GHI CHÚ",
-  "ÂM THANH",
+  "Tiếng Trung",
+  "Pinyin",
+  "Nghĩa hán việt",
+  "Loại từ",
+  "Nghĩa tiếng Việt",
+  "Đặt câu",
 ] as const;
 
 export type FieldDefEntry = {
@@ -95,7 +92,7 @@ export function resolveFieldDefEntries(raw: string | null | undefined): FieldDef
   return DEFAULT_NOTE_TYPE_FIELDS.map((name) => ({
     name,
     ...DEFAULT_FIELD_SETTINGS,
-    sortField: name === "CHỮ HÁN",
+    sortField: name === "Tiếng Trung" || name === "CHỮ HÁN",
   }));
 }
 

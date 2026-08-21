@@ -18,9 +18,11 @@ const NOTE_TYPE_LABELS: Record<string, string> = {
   common: "GIAO TIẾP THÔNG DỤNG",
 };
 
-export const REQUIRED_NOTE_FIELDS = new Set(["CHỮ HÁN", "NGHĨA"]);
+export const REQUIRED_NOTE_FIELDS = new Set(["Tiếng Trung", "Nghĩa tiếng Việt"]);
 
 const MULTILINE_LABELS = new Set([
+  "Nghĩa tiếng Việt",
+  "Đặt câu",
   "NGHĨA",
   "VÍ DỤ",
   "ĐẶT CÂU",
@@ -64,16 +66,26 @@ export type FlashcardRecord = {
 };
 
 const CORE_MAP: Record<string, { key: string; multiline?: boolean }> = {
+  "Tiếng Trung": { key: "front" },
   "CHỮ HÁN": { key: "front" },
   "CẤU TRÚC": { key: "front" },
   "MẢNH CÂU": { key: "front" },
   "TÌNH HUỐNG": { key: "front" },
+  Pinyin: { key: "pinyin" },
   PINYIN: { key: "pinyin" },
+  "Nghĩa tiếng Việt": { key: "back", multiline: true },
   NGHĨA: { key: "back", multiline: true },
   "GIẢI THÍCH": { key: "back", multiline: true },
   "CÂU ĐÚNG": { key: "back", multiline: true },
   "CÂU TRẢ LỜI": { key: "back" },
   "ÂM THANH": { key: "audioUrl" },
+};
+
+/** Khóa extraFields cũ → tên field mới */
+const LEGACY_EXTRA_KEYS: Record<string, string[]> = {
+  "Nghĩa hán việt": ["HÁN VIỆT", "Nghĩa hán việt"],
+  "Loại từ": ["LOẠI TỪ", "Loại từ"],
+  "Đặt câu": ["ĐẶT CÂU", "Đặt câu", "VÍ DỤ"],
 };
 
 export function buildNoteFieldRows(
@@ -149,10 +161,18 @@ function fieldRowForLabel(
   return {
     key: `extra:${label}`,
     label,
-    value: extras[label] ?? "",
+    value: lookupExtra(extras, label),
     multiline: MULTILINE_LABELS.has(label),
     isImage: IMAGE_LABELS.has(label),
   };
+}
+
+function lookupExtra(extras: Record<string, string>, label: string): string {
+  if (extras[label]?.trim()) return extras[label];
+  for (const alt of LEGACY_EXTRA_KEYS[label] ?? []) {
+    if (extras[alt]?.trim()) return extras[alt];
+  }
+  return "";
 }
 
 export function noteFieldsToCardPayload(
@@ -181,15 +201,15 @@ export function noteFieldsToCardPayload(
   if (audio.startsWith("[sound:")) {
     audio = audio.replace(/^\[sound:([^\]]+)\]$/, "$1");
   }
-  const hanViet = getLabel("HÁN VIỆT");
+  const hanViet = getLabel("Nghĩa hán việt") || getLabel("HÁN VIỆT");
   const soundInHanViet = hanViet.match(/\[sound:([^\]]+)\]/);
   if (!audio && soundInHanViet) audio = soundInHanViet[1];
 
   return {
     section,
-    front: get("front") || getLabel("CHỮ HÁN"),
-    back: get("back") || getLabel("NGHĨA"),
-    pinyin: get("pinyin") || getLabel("PINYIN") || null,
+    front: get("front") || getLabel("Tiếng Trung") || getLabel("CHỮ HÁN"),
+    back: get("back") || getLabel("Nghĩa tiếng Việt") || getLabel("NGHĨA"),
+    pinyin: get("pinyin") || getLabel("Pinyin") || getLabel("PINYIN") || null,
     audioUrl: audio || null,
     extraFields: stringifyExtraFields(extras),
   };

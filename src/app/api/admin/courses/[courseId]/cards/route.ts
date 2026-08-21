@@ -18,9 +18,8 @@ export async function POST(req: Request, context: RouteContext) {
     extraFields?: Record<string, string>;
   };
 
-  if (!body.front?.trim() || !body.back?.trim()) {
-    return NextResponse.json({ error: "front and back required" }, { status: 400 });
-  }
+  const front = body.front?.trim() ?? "";
+  const back = body.back?.trim() ?? "";
 
   const maxOrder = await prisma.flashcard.aggregate({
     where: { courseId },
@@ -31,8 +30,8 @@ export async function POST(req: Request, context: RouteContext) {
     data: {
       courseId,
       section: body.section?.trim() || "vocabulary",
-      front: body.front.trim(),
-      back: body.back.trim(),
+      front,
+      back,
       pinyin: body.pinyin?.trim() || null,
       audioUrl: body.audioUrl?.trim() || null,
       extraFields: body.extraFields ? stringifyExtraFields(body.extraFields) : null,

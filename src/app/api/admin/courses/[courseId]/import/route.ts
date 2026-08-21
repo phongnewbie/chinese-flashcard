@@ -5,7 +5,7 @@ import {
   type ImportPreview,
 } from "@/lib/import-cards";
 import { mergeFieldDefs, parseFieldDefs, stringifyExtraFields } from "@/lib/fields";
-import { getSectionPreset } from "@/lib/section-presets";
+import { getSectionPreset, courseNeedsPresetFields } from "@/lib/section-presets";
 import type { StudySectionId } from "@/lib/sections";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
@@ -82,12 +82,17 @@ async function handleImport(req: Request, context: RouteContext) {
     sortOrder: order + i + 1,
   }));
 
-  const mergedDefs = mergeFieldDefs(
+  const section = (course.primarySection as StudySectionId | null) ?? "vocabulary";
+  const presetNames = getSectionPreset(section).fieldDefs.map((f) => f.name);
+  const mergedFromImport = mergeFieldDefs(
     parseFieldDefs(course.fieldDefs).length > 0
       ? parseFieldDefs(course.fieldDefs)
-      : getSectionPreset(course.primarySection ?? "vocabulary").fieldDefs.map((f) => f.name),
+      : presetNames,
     result.cards.map((c) => c.extraFields ?? {}),
   );
+  const mergedDefs = courseNeedsPresetFields(section, JSON.stringify(mergedFromImport))
+    ? presetNames
+    : [...new Set([...presetNames, ...mergedFromImport])];
 
   await prisma.$transaction(
     async (tx) => {

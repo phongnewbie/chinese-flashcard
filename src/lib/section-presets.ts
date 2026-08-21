@@ -65,34 +65,38 @@ const BASE_CARD_CSS = `.card {
   opacity: 0.85;
 }`;
 
-/** Từ vựng — khớp cột Excel: Tiếng Trung | Pinyin | Nghĩa hán việt | Loại từ | Nghĩa tiếng Việt | Đặt câu */
+/** Từ vựng — đúng thứ tự cột Excel */
+const VOCAB_FIELDS = {
+  chinese: "Tiếng Trung",
+  pinyin: "Pinyin",
+  hanViet: "Nghĩa hán việt",
+  pos: "Loại từ",
+  meaning: "Nghĩa tiếng Việt",
+  example: "Đặt câu",
+} as const;
+
 const VOCABULARY_PRESET: SectionPreset = {
   noteTypeLabel: "TỪ VỰNG HSK",
   fieldDefs: [
-    field("CHỮ HÁN", { sortField: true, fontSize: 28, description: "Tiếng Trung" }),
-    field("PINYIN", { fontSize: 18, description: "Phiên âm" }),
-    field("HÁN VIỆT", { description: "Nghĩa hán việt" }),
-    field("LOẠI TỪ", { description: "Loại từ (Động từ, Danh từ…)" }),
-    field("NGHĨA", { fontSize: 20, description: "Nghĩa tiếng Việt", htmlEditor: true }),
-    field("ĐẶT CÂU", { description: "Câu ví dụ — Trung / Pinyin / Việt", htmlEditor: true, collapse: false }),
-    field("ẢNH", { description: "Link hoặc tên file ảnh" }),
-    field("GHI CHÚ", { htmlEditor: true, collapse: true }),
-    field("ÂM THANH", { description: "File mp3 hoặc link" }),
+    field(VOCAB_FIELDS.chinese, { sortField: true, fontSize: 28 }),
+    field(VOCAB_FIELDS.pinyin, { fontSize: 18 }),
+    field(VOCAB_FIELDS.hanViet),
+    field(VOCAB_FIELDS.pos),
+    field(VOCAB_FIELDS.meaning, { fontSize: 20, htmlEditor: true }),
+    field(VOCAB_FIELDS.example, { htmlEditor: true, collapse: false }),
   ],
   frontTemplate: `<div class="card front">
-  <div class="meaning">{{Back}}</div>
-  {{#LOẠI TỪ}}<div class="meta-row"><strong>Loại từ:</strong> {{LOẠI TỪ}}</div>{{/LOẠI TỪ}}
+  <div class="meaning">{{${VOCAB_FIELDS.meaning}}}</div>
+  {{#${VOCAB_FIELDS.pos}}}<div class="meta-row"><strong>Loại từ:</strong> {{${VOCAB_FIELDS.pos}}}</div>{{/${VOCAB_FIELDS.pos}}}
   <p class="hint">Enter / Space — lật thẻ</p>
 </div>`,
   backTemplate: `<div class="card back">
-  <div class="hanzi">{{Front}}</div>
-  {{#Pinyin}}<div class="pinyin">{{Pinyin}}</div>{{/Pinyin}}
-  {{#HÁN VIỆT}}<div class="meta-row"><strong>Hán Việt:</strong> {{HÁN VIỆT}}</div>{{/HÁN VIỆT}}
-  {{#LOẠI TỪ}}<div class="meta-row"><strong>Loại từ:</strong> {{LOẠI TỪ}}</div>{{/LOẠI TỪ}}
-  <div class="meaning">{{Back}}</div>
-  {{#ĐẶT CÂU}}<div class="example"><strong>Đặt câu:</strong><br>{{ĐẶT CÂU}}</div>{{/ĐẶT CÂU}}
-  {{#ẢNH}}<div class="example">{{ẢNH}}</div>{{/ẢNH}}
-  {{#GHI CHÚ}}<div class="note">{{GHI CHÚ}}</div>{{/GHI CHÚ}}
+  <div class="hanzi">{{${VOCAB_FIELDS.chinese}}}</div>
+  {{#${VOCAB_FIELDS.pinyin}}}<div class="pinyin">{{${VOCAB_FIELDS.pinyin}}}</div>{{/${VOCAB_FIELDS.pinyin}}}
+  {{#${VOCAB_FIELDS.hanViet}}}<div class="meta-row"><strong>Hán Việt:</strong> {{${VOCAB_FIELDS.hanViet}}}</div>{{/${VOCAB_FIELDS.hanViet}}}
+  {{#${VOCAB_FIELDS.pos}}}<div class="meta-row"><strong>Loại từ:</strong> {{${VOCAB_FIELDS.pos}}}</div>{{/${VOCAB_FIELDS.pos}}}
+  <div class="meaning">{{${VOCAB_FIELDS.meaning}}}</div>
+  {{#${VOCAB_FIELDS.example}}}<div class="example"><strong>Đặt câu:</strong><br>{{${VOCAB_FIELDS.example}}}</div>{{/${VOCAB_FIELDS.example}}}
   {{#Audio}}{{Audio}}{{/Audio}}
 </div>`,
   cardCss: BASE_CARD_CSS,
@@ -202,19 +206,47 @@ export function courseDefaultsForSection(section: string) {
   };
 }
 
+/** Bộ thẻ cũ / import lỗi — thiếu trường chuẩn của mục học */
+export function courseNeedsPresetFields(section: string, fieldDefsRaw: string | null): boolean {
+  const anchor = getSectionPreset(section).fieldDefs[0]?.name;
+  if (!anchor) return false;
+  if (!fieldDefsRaw?.trim()) return true;
+  try {
+    const arr = JSON.parse(fieldDefsRaw) as unknown;
+    if (!Array.isArray(arr) || arr.length === 0) return true;
+    const names = arr.map((item) =>
+      typeof item === "string" ? item.trim() : (item as { name?: string }).name?.trim() ?? "",
+    );
+    return !names.includes(anchor) || (section === "vocabulary" && names.includes("CHỮ HÁN"));
+  } catch {
+    return true;
+  }
+}
+
+/** Hai trường bắt buộc theo mục học (map vào front/back) */
+export function requiredFieldLabels(section: string): { front: string; back: string } {
+  const preset = getSectionPreset(section);
+  const names = preset.fieldDefs.map((f) => f.name);
+  const front =
+    names.find((n) => coreFieldForSection(section, n) === "front") ?? names[0] ?? "Front";
+  const back =
+    names.find((n) => coreFieldForSection(section, n) === "back") ?? names[1] ?? "Back";
+  return { front, back };
+}
+
 /** Ánh xạ tên cột Excel → tên field chuẩn trong preset */
 export const IMPORT_FIELD_ALIASES: Record<string, string> = {
-  "tieng trung": "CHỮ HÁN",
-  "chu han": "CHỮ HÁN",
-  "han tu": "CHỮ HÁN",
-  "nghia han viet": "HÁN VIỆT",
-  "han viet": "HÁN VIỆT",
-  "loai tu": "LOẠI TỪ",
-  "nghia tieng viet": "NGHĨA",
-  "nghia": "NGHĨA",
-  "dat cau": "ĐẶT CÂU",
-  "cau vi du": "ĐẶT CÂU",
-  "vi du": "VÍ DỤ",
+  "tieng trung": "Tiếng Trung",
+  "chu han": "Tiếng Trung",
+  "han tu": "Tiếng Trung",
+  "nghia han viet": "Nghĩa hán việt",
+  "han viet": "Nghĩa hán việt",
+  "loai tu": "Loại từ",
+  "nghia tieng viet": "Nghĩa tiếng Việt",
+  "nghia": "Nghĩa tiếng Việt",
+  "dat cau": "Đặt câu",
+  "cau vi du": "Đặt câu",
+  "vi du": "Ví dụ",
   "cau truc": "CẤU TRÚC",
   "mau cau": "CẤU TRÚC",
   "giai thich": "GIẢI THÍCH",
@@ -224,11 +256,11 @@ export const IMPORT_FIELD_ALIASES: Record<string, string> = {
   "tinh huong": "TÌNH HUỐNG",
   "cau tra loi": "CÂU TRẢ LỜI",
   "cum tu": "CÂU TRẢ LỜI",
-  "pinyin": "PINYIN",
-  "phien am": "PINYIN",
+  pinyin: "Pinyin",
+  "phien am": "Pinyin",
   "am thanh": "ÂM THANH",
-  "audio": "ÂM THANH",
-  "anh": "ẢNH",
+  audio: "ÂM THANH",
+  anh: "ẢNH",
   "hinh anh": "ẢNH",
   "ghi chu": "GHI CHÚ",
 };
@@ -240,8 +272,11 @@ export function coreFieldForSection(
 ): "front" | "back" | "pinyin" | "audioUrl" | null {
   const maps: Record<string, Record<string, "front" | "back" | "pinyin" | "audioUrl">> = {
     vocabulary: {
+      "Tiếng Trung": "front",
       "CHỮ HÁN": "front",
+      "Nghĩa tiếng Việt": "back",
       NGHĨA: "back",
+      Pinyin: "pinyin",
       PINYIN: "pinyin",
       "ÂM THANH": "audioUrl",
     },

@@ -181,7 +181,9 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
           <section className="space-y-4">
             <h2 className="font-semibold">Import Excel / Notepad</h2>
             <p className="text-sm text-stone-600">
-              Cột: <strong>Chữ Hán</strong> = đáp án, <strong>Nghĩa</strong> = gợi ý, <strong>HÁN VIỆT, VÍ DỤ, ẢNH, GHI CHÚ</strong> = field Anki.
+              <strong>Từ vựng:</strong> Tiếng Trung · Pinyin · Nghĩa hán việt · Loại từ · Nghĩa tiếng Việt · Đặt câu
+              {" · "}
+              <strong>Ngữ pháp / Sắp xếp / Giao tiếp:</strong> xem trường tương ứng trong Browse sau khi tạo bộ thẻ.
             </p>
             <div className="flex gap-4 text-sm">
               <label><input type="radio" checked={importMode === "append"} onChange={() => setImportMode("append")} /> Thêm</label>
