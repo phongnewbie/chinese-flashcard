@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { canAccessCourse } from "@/lib/hsk-enrollment";
 import { StudyClient } from "./study-client";
 import { isAdminEmail } from "@/lib/admin";
+import { effectiveAdmin, readStudentPreviewCookie } from "@/lib/student-preview";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
@@ -15,7 +16,9 @@ export default async function StudyPage({ params }: PageProps) {
   if (!session?.user) redirect("/");
 
   const { courseId } = await params;
-  const isAdmin = session.user.email ? isAdminEmail(session.user.email) : false;
+  const rawAdmin = session.user.email ? isAdminEmail(session.user.email) : false;
+  const studentPreview = await readStudentPreviewCookie();
+  const isAdminUi = effectiveAdmin(rawAdmin, studentPreview);
 
   const course = await prisma.course.findFirst({
     where: { id: courseId, published: true },
@@ -24,7 +27,7 @@ export default async function StudyPage({ params }: PageProps) {
   if (!course) notFound();
 
   const courseAllowed =
-    isAdmin ||
+    isAdminUi ||
     (await canAccessCourse(session.user.id, session.user.email, courseId));
 
   return (
@@ -32,13 +35,15 @@ export default async function StudyPage({ params }: PageProps) {
       <AppHeader />
       <DeviceGate>
         <main className="mx-auto max-w-3xl px-4 py-8">
-          {isAdmin && (
-            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              Đây là trang <strong>học viên</strong> (<code>/hoc/...</code>). Muốn Browse Anki →{" "}
-              <Link href={`/admin/khoa/${courseId}`} className="font-semibold underline">
-                Quản trị khóa này
+          {rawAdmin && (
+            <p className="mb-4 text-right">
+              <Link
+                href={`/admin/khoa/${courseId}`}
+                className="text-sm text-stone-500 hover:text-stone-800 underline"
+              >
+                ⚙ Quản trị / import bộ thẻ này
               </Link>
-            </div>
+            </p>
           )}
           {!courseAllowed ? (
             <div className="mx-auto max-w-lg rounded-2xl border border-stone-200 bg-white p-8 shadow-sm text-center">

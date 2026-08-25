@@ -57,6 +57,7 @@ export function AnkiBrowse({
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const selected = cards.find((c) => c.id === selectedId) ?? null;
   const selectedIndex = cards.findIndex((c) => c.id === selectedId);
@@ -129,6 +130,29 @@ export function AnkiBrowse({
       setDirty(false);
       void loadCards();
     } else onMsg("Lỗi lưu thẻ");
+  };
+
+  const deleteNote = async () => {
+    if (!selected || deleting) return;
+    const label = selected.front || selected.back || "thẻ này";
+    if (!window.confirm(`Xóa thẻ "${label}"? Hành động không hoàn tác.`)) return;
+
+    setDeleting(true);
+    const deletedId = selected.id;
+    const res = await fetch(`/api/admin/courses/${courseId}/cards/${deletedId}`, {
+      method: "DELETE",
+    });
+    setDeleting(false);
+
+    if (!res.ok) {
+      onMsg("Không xóa được thẻ");
+      return;
+    }
+
+    onMsg("Đã xóa thẻ");
+    setDirty(false);
+    setSelectedId(null);
+    await loadCards();
   };
 
   const addNote = useCallback(async () => {
@@ -473,6 +497,15 @@ export function AnkiBrowse({
                   </select>
                   <button type="button" className="anki-win-save" disabled={!dirty || saving} onClick={() => void saveNote()}>
                     {saving ? "…" : "Lưu"}
+                  </button>
+                  <button
+                    type="button"
+                    className="anki-win-delete"
+                    disabled={deleting}
+                    onClick={() => void deleteNote()}
+                    title="Xóa thẻ đang chọn"
+                  >
+                    {deleting ? "…" : "Xóa"}
                   </button>
                 </div>
               </div>

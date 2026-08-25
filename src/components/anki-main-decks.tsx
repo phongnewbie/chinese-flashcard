@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { canUserStudy, isAccessLocked, LockScreen, TrialBanner, useAccess } from "@/components/access-ui";
 import { categoryDeckLabel, type HskCategoryId } from "@/lib/hsk-levels";
 import type { DeckCountStats } from "@/lib/deck-overview-stats";
+import { SectionTemplateEditor } from "@/components/section-template-editor";
 
 type DeckRow = {
   id: string;
@@ -71,6 +72,7 @@ export function AnkiMainDecks() {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
   const [msg, setMsg] = useState("");
+  const [templateDialog, setTemplateDialog] = useState<{ sectionId: HskCategoryId; label: string } | null>(null);
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -296,6 +298,7 @@ export function AnkiMainDecks() {
                     setExpandedLevels((p) => ({ ...p, [levelId]: true }));
                     setExpandedCats((p) => ({ ...p, [`${levelId}:${catId}`]: true }));
                   }}
+                  onOpenSectionTemplate={(sectionId, label) => setTemplateDialog({ sectionId, label })}
                   onDragStart={setDragDeck}
                   onDragEnd={() => setDragDeck(null)}
                   onDropDeck={reorderDecks}
@@ -321,9 +324,17 @@ export function AnkiMainDecks() {
       <p className="anki-home-footer">
         Đã học <strong>{data.studiedToday}</strong> thẻ hôm nay
         {isAdmin && (
-          <> · Admin: kéo thả sắp xếp, ⚙ nhập liệu &amp; chỉnh mẫu thẻ</>
+          <> · Admin: bấm tên bộ thẻ để học như học viên · 🎨 mẫu hiển thị · ⚙ nhập liệu</>
         )}
       </p>
+
+      {templateDialog && (
+        <SectionTemplateEditor
+          sectionId={templateDialog.sectionId}
+          label={templateDialog.label}
+          onClose={() => setTemplateDialog(null)}
+        />
+      )}
     </div>
   );
 }
@@ -340,6 +351,7 @@ function LevelBlock({
   onToggleCat,
   onOpenStudy,
   onAddDeck,
+  onOpenSectionTemplate,
   onDragStart,
   onDragEnd,
   onDropDeck,
@@ -361,6 +373,7 @@ function LevelBlock({
   onToggleCat: (key: string) => void;
   onOpenStudy: (id: string, levelLocked?: boolean) => void;
   onAddDeck: (levelId: string, catId: string) => void;
+  onOpenSectionTemplate: (sectionId: HskCategoryId, label: string) => void;
   onDragStart: (d: DeckRow) => void;
   onDragEnd: () => void;
   onDropDeck: (decks: DeckRow[], fromId: string, toId: string) => void;
@@ -405,6 +418,7 @@ function LevelBlock({
               onToggleCat={() => onToggleCat(catKey)}
               onOpenStudy={(id) => onOpenStudy(id, levelLocked)}
               onAddDeck={() => onAddDeck(level.id, cat.id)}
+              onOpenSectionTemplate={() => onOpenSectionTemplate(cat.id as HskCategoryId, catLabel)}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
               onDropDeck={onDropDeck}
@@ -432,6 +446,7 @@ function CategoryBlock({
   onToggleCat,
   onOpenStudy,
   onAddDeck,
+  onOpenSectionTemplate,
   onDragStart,
   onDragEnd,
   onDropDeck,
@@ -452,6 +467,7 @@ function CategoryBlock({
   onToggleCat: () => void;
   onOpenStudy: (id: string) => void;
   onAddDeck: () => void;
+  onOpenSectionTemplate: () => void;
   onDragStart: (d: DeckRow) => void;
   onDragEnd: () => void;
   onDropDeck: (decks: DeckRow[], fromId: string, toId: string) => void;
@@ -469,16 +485,29 @@ function CategoryBlock({
           <span className="anki-tree-toggle">{catOpen ? "▾" : "▸"}</span>
           {catLabel}
           {isAdmin && (
-            <button
-              type="button"
-              className="anki-inline-add"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddDeck();
-              }}
-            >
-              + thêm
-            </button>
+            <>
+              <button
+                type="button"
+                className="anki-inline-add"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddDeck();
+                }}
+              >
+                + thêm
+              </button>
+              <button
+                type="button"
+                className="anki-inline-add template"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenSectionTemplate();
+                }}
+                title="Chỉnh mẫu hiển thị cho toàn bộ mục này"
+              >
+                🎨 mẫu
+              </button>
+            </>
           )}
         </td>
         <StatsCells stats={cat.stats} />

@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import {
   coreFieldForSection,
+  getSectionPreset,
   IMPORT_FIELD_ALIASES,
 } from "@/lib/section-presets";
 import { parseSectionValue, sectionFromSheetName, type StudySectionId } from "@/lib/sections";
@@ -71,11 +72,52 @@ const COLUMN_HINTS = {
     "file mp3", "am thanh mp3",
   ],
   example: ["vi du", "ví dụ", "example", "cau vi du", "câu ví dụ", "vd", "dat cau", "đặt câu"],
+  hanViet: ["nghia han viet", "nghĩa hán việt", "han viet", "hán việt", "han viet nghia"],
+  pos: ["loai tu", "loại từ", "tu loai", "từ loại", "part of speech", "pos"],
 } as const;
 
 function canonicalFieldName(header: string): string {
   const norm = normHeader(header);
   return IMPORT_FIELD_ALIASES[norm] ?? header.trim();
+}
+
+function headerMatchesField(header: string, fieldName: string): boolean {
+  const h = normHeader(header);
+  const f = normHeader(fieldName);
+  if (h === f) return true;
+  const aliased = IMPORT_FIELD_ALIASES[h];
+  return aliased ? normHeader(aliased) === f : false;
+}
+
+/** Map cột Excel → tên field chuẩn theo preset mục học */
+function mapRowToPresetFields(
+  row: Record<string, string>,
+  section: StudySectionId,
+): Record<string, string> {
+  const preset = getSectionPreset(section);
+  const presetNames = preset.fieldDefs.map((f) => f.name);
+  const mapped: Record<string, string> = {};
+
+  for (const [header, value] of Object.entries(row)) {
+    const val = value?.trim();
+    if (!val || SKIP_HEADERS.has(normHeader(header)) || /^__COL_\d+$/.test(header)) continue;
+
+    let canonical: string | null = null;
+    for (const name of presetNames) {
+      if (headerMatchesField(header, name)) {
+        canonical = name;
+        break;
+      }
+    }
+    if (!canonical) {
+      const aliased = canonicalFieldName(header);
+      if (presetNames.includes(aliased)) canonical = aliased;
+      else canonical = aliased;
+    }
+    mapped[canonical] = val;
+  }
+
+  return mapped;
 }
 
 function applyCanonicalRow(
@@ -114,8 +156,13 @@ function applyCanonicalRow(
 
 type Field = keyof typeof COLUMN_HINTS;
 
-function scoreHeader(norm: string, hints: readonly string[]): number {
+function scoreHeader(norm: string, hints: readonly string[], field?: Field): number {
   if (SKIP_HEADERS.has(norm)) return -100;
+  if (field === "back") {
+    if (norm.includes("han viet") || norm.includes("loai tu") || norm.includes("dat cau")) return -100;
+    if (norm === "nghia" || norm.endsWith(" nghia")) return 30;
+  }
+  if (field === "front" && (norm.includes("han viet") || norm.includes("loai tu"))) return -100;
   let best = 0;
   for (const hint of hints) {
     const h = normHeader(hint);
@@ -147,7 +194,7 @@ function pickBestField(map: RowMap, field: Field, used: Set<string>): string | u
   let bestScore = 0;
   for (const col of map) {
     if (used.has(col.key) || !col.value) continue;
-    const score = scoreHeader(col.norm, COLUMN_HINTS[field]);
+    const score = scoreHeader(col.norm, COLUMN_HINTS[field], field);
     if (score > bestScore) {
       bestScore = score;
       bestKey = col.key;
@@ -161,6 +208,23 @@ function pickBestField(map: RowMap, field: Field, used: Set<string>): string | u
 function pickSection(map: RowMap, defaultSection: StudySectionId, used: Set<string>): StudySectionId {
   const raw = pickBestField(map, "section", used);
   return raw ? parseSectionValue(raw) : defaultSection;
+}
+
+function positionalPickByPreset(
+  map: RowMap,
+  section: StudySectionId,
+): ParsedCard | null {
+  const preset = getSectionPreset(section);
+  const cols = map.filter(
+    (c) => !SKIP_HEADERS.has(c.norm) && c.value !== "" && scoreHeader(c.norm, COLUMN_HINTS.section, "section") < 35,
+  );
+  if (cols.length < 2) return null;
+
+  const values: Record<string, string> = {};
+  for (let i = 0; i < Math.min(cols.length, preset.fieldDefs.length); i++) {
+    values[preset.fieldDefs[i]!.name] = cols[i]!.value;
+  }
+  return applyCanonicalRow(section, values);
 }
 
 function positionalPick(
@@ -208,6 +272,13 @@ function rowToCard(
   const used = new Set<string>();
   const section = pickSection(map, defaultSection, used);
 
+  const presetMapped = mapRowToPresetFields(
+    Object.fromEntries(map.map((c) => [c.key, c.value])),
+    section,
+  );
+  const fromPreset = applyCanonicalRow(section, presetMapped);
+  if (fromPreset) return fromPreset;
+
   const rawFields: Record<string, string> = {};
   for (const col of map) {
     if (SKIP_HEADERS.has(col.norm) || !col.value) continue;
@@ -223,6 +294,9 @@ function rowToCard(
   let audioUrl = pickBestField(map, "audio", used);
 
   if (!front || !back) {
+    const posPreset = positionalPickByPreset(map, section);
+    if (posPreset) return posPreset;
+
     const pos = positionalPick(map, section);
     front = front ?? pos.front;
     back = back ?? pos.back;
@@ -235,7 +309,19 @@ function rowToCard(
   const extraFields: Record<string, string> = {};
   for (const col of map) {
     if (used.has(col.key) || !col.value || SKIP_HEADERS.has(col.norm)) continue;
-    extraFields[canonicalFieldName(col.key)] = col.value;
+    const name = canonicalFieldName(col.key);
+    if (["front", "back", "pinyin", "audioUrl"].includes(coreFieldForSection(section, name) ?? "")) continue;
+    extraFields[name] = col.value;
+  }
+
+  // Bổ sung cột chuyên biệt (hán việt, loại từ, đặt câu) nếu heuristic bỏ sót
+  const hanViet = pickBestField(map, "hanViet", new Set([...used]));
+  const pos = pickBestField(map, "pos", new Set([...used]));
+  const example = pickBestField(map, "example", new Set([...used]));
+  if (hanViet && !extraFields["Nghĩa hán việt"]) extraFields["Nghĩa hán việt"] = hanViet;
+  if (pos && !extraFields["Loại từ"]) extraFields["Loại từ"] = pos;
+  if (example && !extraFields["Đặt câu"] && !extraFields["VÍ DỤ"]) {
+    extraFields[section === "vocabulary" ? "Đặt câu" : "VÍ DỤ"] = example;
   }
 
   if (!front || !back) return null;
@@ -365,11 +451,13 @@ export function parseExcelBuffer(buffer: ArrayBuffer, deckSection?: StudySection
       const isHeader = nonEmpties.some((cell) => {
         const norm = normHeader(cell);
         return (
-          scoreHeader(norm, COLUMN_HINTS.front) >= 35 ||
-          scoreHeader(norm, COLUMN_HINTS.back) >= 35 ||
-          scoreHeader(norm, COLUMN_HINTS.pinyin) >= 35 ||
-          scoreHeader(norm, COLUMN_HINTS.example) >= 35 ||
-          scoreHeader(norm, COLUMN_HINTS.section) >= 35
+          scoreHeader(norm, COLUMN_HINTS.front, "front") >= 35 ||
+          scoreHeader(norm, COLUMN_HINTS.back, "back") >= 35 ||
+          scoreHeader(norm, COLUMN_HINTS.pinyin, "pinyin") >= 35 ||
+          scoreHeader(norm, COLUMN_HINTS.example, "example") >= 35 ||
+          scoreHeader(norm, COLUMN_HINTS.hanViet, "hanViet") >= 35 ||
+          scoreHeader(norm, COLUMN_HINTS.pos, "pos") >= 35 ||
+          scoreHeader(norm, COLUMN_HINTS.section, "section") >= 35
         );
       });
 
@@ -446,11 +534,13 @@ export function parseImportFile(
         const isHeader = nonEmpties.some((cell) => {
           const norm = normHeader(cell);
           return (
-            scoreHeader(norm, COLUMN_HINTS.front) >= 35 ||
-            scoreHeader(norm, COLUMN_HINTS.back) >= 35 ||
-            scoreHeader(norm, COLUMN_HINTS.pinyin) >= 35 ||
-            scoreHeader(norm, COLUMN_HINTS.example) >= 35 ||
-            scoreHeader(norm, COLUMN_HINTS.section) >= 35
+            scoreHeader(norm, COLUMN_HINTS.front, "front") >= 35 ||
+            scoreHeader(norm, COLUMN_HINTS.back, "back") >= 35 ||
+            scoreHeader(norm, COLUMN_HINTS.pinyin, "pinyin") >= 35 ||
+            scoreHeader(norm, COLUMN_HINTS.example, "example") >= 35 ||
+            scoreHeader(norm, COLUMN_HINTS.hanViet, "hanViet") >= 35 ||
+            scoreHeader(norm, COLUMN_HINTS.pos, "pos") >= 35 ||
+            scoreHeader(norm, COLUMN_HINTS.section, "section") >= 35
           );
         });
 

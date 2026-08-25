@@ -1000,6 +1000,10 @@ body {
   font-weight: 600;
 }
 
+.anki-inline-add.template {
+  color: #7c3aed;
+}
+
 .anki-drag-handle {
   margin-right: 0.35rem;
   color: #a8a29e;

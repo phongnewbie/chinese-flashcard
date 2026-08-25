@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
-import { isAdminEmail } from "@/lib/admin";
+import { AdminNavLinks } from "@/components/admin-nav-links";
 
 export async function AppHeader() {
   const session = await auth();
-  const admin = session?.user?.email && isAdminEmail(session.user.email);
 
   return (
     <header className="border-b border-stone-200 bg-white/80 backdrop-blur sticky top-0 z-10">
@@ -18,11 +17,7 @@ export async function AppHeader() {
               <Link href="/hoc" className="text-stone-600 hover:text-stone-900">
                 Bộ thẻ
               </Link>
-              {admin && (
-                <Link href="/admin" className="text-emerald-700 hover:text-emerald-900 font-medium">
-                  Quản trị
-                </Link>
-              )}
+              <AdminNavLinks />
               <span className="hidden sm:inline text-stone-400 truncate max-w-[140px]">
                 {session.user?.email}
               </span>

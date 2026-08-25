@@ -1,4 +1,5 @@
 import { parseExtraFields } from "@/lib/fields";
+import { resolveCourseTemplates, type SectionTemplatesMap } from "@/lib/section-templates";
 
 export type TemplateFields = Record<string, string>;
 
@@ -104,16 +105,16 @@ export function renderCardTemplate(
   return html;
 }
 
-export function getCourseTemplates(course: {
-  frontTemplate: string | null;
-  backTemplate: string | null;
-  cardCss: string | null;
-}) {
-  return {
-    frontTemplate: course.frontTemplate?.trim() || DEFAULT_FRONT_TEMPLATE,
-    backTemplate: course.backTemplate?.trim() || DEFAULT_BACK_TEMPLATE,
-    cardCss: course.cardCss?.trim() || DEFAULT_CARD_CSS,
-  };
+export function getCourseTemplates(
+  course: {
+    frontTemplate: string | null;
+    backTemplate: string | null;
+    cardCss: string | null;
+    primarySection?: string | null;
+  },
+  globalSectionTemplates?: SectionTemplatesMap | null,
+) {
+  return resolveCourseTemplates(course, globalSectionTemplates);
 }
 
 export function toCardFields(card: {

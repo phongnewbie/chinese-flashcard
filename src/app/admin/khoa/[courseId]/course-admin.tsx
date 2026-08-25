@@ -268,6 +268,7 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
             <TemplateEditor
               key={`tpl-${course.id}-${course.frontTemplate?.length ?? 0}-${course.backTemplate?.length ?? 0}`}
               courseId={courseId}
+              primarySection={course.primarySection ?? "vocabulary"}
               initial={{ frontTemplate: course.frontTemplate, backTemplate: course.backTemplate, cardCss: course.cardCss }}
               fieldNames={resolveFieldDefs(course.fieldDefs)}
               onSaved={reload}

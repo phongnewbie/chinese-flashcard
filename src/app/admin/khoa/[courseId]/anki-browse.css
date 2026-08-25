@@ -650,6 +650,16 @@
   opacity: 0.5;
 }
 
+.anki-win-delete {
+  background: #fde8e8 !important;
+  color: #991b1b !important;
+  font-weight: 600;
+}
+
+.anki-win-delete:disabled {
+  opacity: 0.5;
+}
+
 .anki-subnav {
   display: flex;
   gap: 4px;

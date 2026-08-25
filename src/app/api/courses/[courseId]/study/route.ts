@@ -1,11 +1,14 @@
 import { auth } from "@/auth";
+import { isAdminEmail } from "@/lib/admin";
 import { getAccessStatus } from "@/lib/access";
 import { parseCourseCardTypes } from "@/lib/card-types";
 import { getCourseTemplates } from "@/lib/card-template";
+import { parseSectionTemplates } from "@/lib/section-templates";
 import { ensureAppSettings, prisma } from "@/lib/db";
 import { canAccessCourse } from "@/lib/hsk-enrollment";
 import { buildStudyQueue } from "@/lib/study-queue";
 import { lockedSectionForCourse, type StudySectionId } from "@/lib/sections";
+import { readStudentPreviewCookie } from "@/lib/student-preview";
 import { NextResponse } from "next/server";
 
 type RouteContext = { params: Promise<{ courseId: string }> };
@@ -23,7 +26,13 @@ export async function GET(req: Request, context: RouteContext) {
 
   const { courseId } = await context.params;
 
-  const allowed = await canAccessCourse(session.user.id, session.user.email, courseId);
+  const rawAdmin = session.user.email ? isAdminEmail(session.user.email) : false;
+  const studentPreview = await readStudentPreviewCookie();
+
+  let allowed = await canAccessCourse(session.user.id, session.user.email, courseId);
+  if (rawAdmin && studentPreview) {
+    allowed = await canAccessCourse(session.user.id, null, courseId);
+  }
   if (!allowed) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -76,7 +85,8 @@ export async function GET(req: Request, context: RouteContext) {
     maxNew: settings.maxNewPerDay,
   });
 
-  const templates = getCourseTemplates(courseWithCards);
+  const globalTemplates = parseSectionTemplates(settings.sectionTemplates);
+  const templates = getCourseTemplates(courseWithCards, globalTemplates);
 
   return NextResponse.json({
     courseId: courseWithCards.id,

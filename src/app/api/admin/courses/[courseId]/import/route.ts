@@ -4,7 +4,8 @@ import {
   resolveAudioUrl,
   type ImportPreview,
 } from "@/lib/import-cards";
-import { mergeFieldDefs, parseFieldDefs, stringifyExtraFields } from "@/lib/fields";
+import { mergeFieldDefs, stringifyExtraFields } from "@/lib/fields";
+import { resolveFieldNames, serializeFieldDefEntries, resolveFieldDefEntries } from "@/lib/field-defs";
 import { getSectionPreset, courseNeedsPresetFields } from "@/lib/section-presets";
 import type { StudySectionId } from "@/lib/sections";
 import { prisma } from "@/lib/db";
@@ -83,16 +84,26 @@ async function handleImport(req: Request, context: RouteContext) {
   }));
 
   const section = (course.primarySection as StudySectionId | null) ?? "vocabulary";
-  const presetNames = getSectionPreset(section).fieldDefs.map((f) => f.name);
+  const preset = getSectionPreset(section);
+  const presetNames = preset.fieldDefs.map((f) => f.name);
+  const existingNames = resolveFieldNames(course.fieldDefs);
   const mergedFromImport = mergeFieldDefs(
-    parseFieldDefs(course.fieldDefs).length > 0
-      ? parseFieldDefs(course.fieldDefs)
-      : presetNames,
+    existingNames.length > 0 ? existingNames : presetNames,
     result.cards.map((c) => c.extraFields ?? {}),
   );
-  const mergedDefs = courseNeedsPresetFields(section, JSON.stringify(mergedFromImport))
+  const mergedDefs = courseNeedsPresetFields(section, course.fieldDefs)
     ? presetNames
     : [...new Set([...presetNames, ...mergedFromImport])];
+
+  const fieldDefsPayload = courseNeedsPresetFields(section, course.fieldDefs)
+    ? serializeFieldDefEntries(preset.fieldDefs)
+    : serializeFieldDefEntries(
+        mergedDefs.map((name) => {
+          const existing = resolveFieldDefEntries(course.fieldDefs).find((e) => e.name === name);
+          const fromPreset = preset.fieldDefs.find((e) => e.name === name);
+          return existing ?? fromPreset ?? { name, fontFamily: "Arial", fontSize: 20 };
+        }),
+      );
 
   await prisma.$transaction(
     async (tx) => {
@@ -108,7 +119,7 @@ async function handleImport(req: Request, context: RouteContext) {
       if (mergedDefs.length > 0) {
         await tx.course.update({
           where: { id: courseId },
-          data: { fieldDefs: JSON.stringify(mergedDefs) },
+          data: { fieldDefs: fieldDefsPayload },
         });
       }
     },

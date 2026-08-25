@@ -91,6 +91,7 @@ model AppSetting {
   learningSteps  String @default("1,10")
   zaloUrl        String @default("https://zalo.me/0702924204")
   lockMessage    String @default("Thời gian học thử đã hết. Vui lòng liên hệ qua Zalo để mở khóa và tham gia khóa học trên Zoom.")
+  sectionTemplates String?
 }
 
 model Course {
