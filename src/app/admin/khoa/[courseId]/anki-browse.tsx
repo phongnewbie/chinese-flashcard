@@ -4,15 +4,17 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   buildNoteFieldRows,
+  fieldDefsRawForSection,
   getTags,
   noteFieldsToCardPayload,
   noteTypeLabel,
-  resolveFieldDefs,
+  sortFieldLabel,
+  sortFieldValue,
   type FlashcardRecord,
   type NoteFieldRow,
 } from "@/lib/anki-note-fields";
+import { requiredFieldLabels, getSectionPreset } from "@/lib/section-presets";
 import { STUDY_SECTIONS, sectionLabel, type StudySectionId } from "@/lib/sections";
-import { requiredFieldLabels } from "@/lib/section-presets";
 import { AnkiFieldsDialog } from "./anki-fields-dialog";
 import "./anki-browse.css";
 
@@ -25,6 +27,7 @@ type Props = {
   onAddNoteRef?: React.MutableRefObject<(() => void) | null>;
   onOpenSettings?: () => void;
   onFieldDefsSaved?: () => void;
+  refreshToken?: number;
 };
 
 export function AnkiBrowse({
@@ -36,31 +39,50 @@ export function AnkiBrowse({
   onAddNoteRef,
   onOpenSettings,
   onFieldDefsSaved,
+  refreshToken = 0,
 }: Props) {
-  const sectionForFields = (defaultSection ?? "vocabulary") as StudySectionId;
-  const required = requiredFieldLabels(sectionForFields);
-  const fieldDefs = useMemo(() => resolveFieldDefs(fieldDefsRaw), [fieldDefsRaw]);
+  const primarySection = (defaultSection ?? "vocabulary") as StudySectionId;
+
   const [localFieldDefsRaw, setLocalFieldDefsRaw] = useState<string | null>(fieldDefsRaw);
   const [fieldsDialogOpen, setFieldsDialogOpen] = useState(false);
-  const [sectionFilter, setSectionFilter] = useState("");
+  const [sectionFilter, setSectionFilter] = useState<string>(primarySection);
+  const [subdecks, setSubdecks] = useState<string[]>([]);
   const [cardState, setCardState] = useState("");
   const [search, setSearch] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sidebarFilter, setSidebarFilter] = useState("");
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({ root: true, hsk3: true });
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({ root: true });
   const [cards, setCards] = useState<FlashcardRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [bySection, setBySection] = useState<Record<string, number>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [fields, setFields] = useState<NoteFieldRow[]>([]);
-  const [editSection, setEditSection] = useState<StudySectionId>("vocabulary");
+  const [editSection, setEditSection] = useState<StudySectionId>(primarySection);
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const pendingSelectRef = useRef<string | null>(null);
 
   const selected = cards.find((c) => c.id === selectedId) ?? null;
   const selectedIndex = cards.findIndex((c) => c.id === selectedId);
+  const activeBrowseSection = (sectionFilter || primarySection) as StudySectionId;
+  const editorSection = (selected?.section ?? activeBrowseSection) as StudySectionId;
+  const required = requiredFieldLabels(editorSection);
+  const activePreset = getSectionPreset(activeBrowseSection);
+
+  const activeFieldDefsRaw = useMemo(
+    () =>
+      fieldDefsRawForSection(
+        editorSection,
+        primarySection,
+        fieldDefsRaw,
+        localFieldDefsRaw,
+      ),
+    [editorSection, primarySection, fieldDefsRaw, localFieldDefsRaw],
+  );
 
   const loadCards = useCallback(async () => {
     setLoading(true);
@@ -76,31 +98,60 @@ export function AnkiBrowse({
     setCards(data.cards);
     setTotal(data.total);
     setBySection(data.bySection ?? {});
+    setSubdecks(Array.isArray(data.subdecks) ? data.subdecks : []);
   }, [courseId, sectionFilter, search, cardState]);
 
   useEffect(() => {
     void loadCards();
-  }, [loadCards]);
+  }, [loadCards, refreshToken]);
 
   useEffect(() => {
-    if (!selected && cards.length > 0 && !loading) setSelectedId(cards[0].id);
-  }, [cards, selected, loading]);
+    if (loading) return;
+    if (dirty) return;
+    if (pendingSelectRef.current) {
+      const pending = pendingSelectRef.current;
+      if (cards.some((c) => c.id === pending)) {
+        setSelectedId(pending);
+        pendingSelectRef.current = null;
+        return;
+      }
+      return;
+    }
+    if (selectedId && cards.some((c) => c.id === selectedId)) return;
+    if (cards.length > 0) setSelectedId(cards[0]!.id);
+    else setSelectedId(null);
+  }, [cards, loading, selectedId, dirty]);
 
   useEffect(() => {
     setLocalFieldDefsRaw(fieldDefsRaw);
   }, [fieldDefsRaw]);
 
-  const activeFieldDefsRaw = localFieldDefsRaw ?? fieldDefsRaw;
-
   useEffect(() => {
-    if (!selected) {
-      setFields([]);
+    if (pendingSelectRef.current) return;
+    if (!selected && !pendingSelectRef.current) {
+      setFields(
+        buildNoteFieldRows(
+          {
+            id: "",
+            section: activeBrowseSection,
+            front: "",
+            back: "",
+            pinyin: null,
+            audioUrl: null,
+            extraFields: null,
+            sortOrder: 0,
+          },
+          activeFieldDefsRaw,
+        ),
+      );
+      setEditSection(activeBrowseSection);
       return;
     }
+    if (!selected) return;
     setFields(buildNoteFieldRows(selected, activeFieldDefsRaw));
     setEditSection(selected.section as StudySectionId);
-    setDirty(false);
-  }, [selected, activeFieldDefsRaw]);
+    if (!pendingSelectRef.current) setDirty(false);
+  }, [selected, activeFieldDefsRaw, activeBrowseSection]);
 
   const updateField = (key: string, value: string) => {
     setFields((prev) => prev.map((f) => (f.key === key ? { ...f, value } : f)));
@@ -108,28 +159,53 @@ export function AnkiBrowse({
   };
 
   const saveNote = async () => {
-    if (!selected) return;
+    const cardId = selected?.id ?? selectedId;
+    if (!cardId) return;
+
+    if (!selected && !pendingSelectRef.current) {
+      onMsg("Thẻ không còn trong danh sách — đang tải lại…");
+      setSelectedId(null);
+      setDirty(false);
+      await loadCards();
+      return;
+    }
+
     setSaving(true);
     const payload = noteFieldsToCardPayload(editSection, fields);
-    if (!payload.front || !payload.back) {
-      onMsg(`${required.front} và ${required.back} không được trống`);
+    const front = payload.front?.trim() ?? "";
+    const back = payload.back?.trim() ?? "";
+    if (!front && !back) {
+      onMsg(`${required.front} hoặc ${required.back} cần có nội dung trước khi lưu`);
       setSaving(false);
       return;
     }
     const extras = payload.extraFields
       ? (JSON.parse(payload.extraFields) as Record<string, string>)
       : {};
-    const res = await fetch(`/api/admin/courses/${courseId}/cards/${selected.id}`, {
+    const res = await fetch(`/api/admin/courses/${courseId}/cards/${cardId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...payload, extraFields: extras }),
     });
     setSaving(false);
     if (res.ok) {
-      onMsg("");
+      pendingSelectRef.current = null;
+      onMsg("Đã lưu thẻ");
       setDirty(false);
-      void loadCards();
-    } else onMsg("Lỗi lưu thẻ");
+      await loadCards();
+      setSelectedId(cardId);
+      return;
+    }
+    if (res.status === 404) {
+      onMsg("Thẻ không tồn tại (có thể đã bị xóa hoặc import lại) — đã tải lại danh sách");
+      pendingSelectRef.current = null;
+      setSelectedId(null);
+      setDirty(false);
+      await loadCards();
+      return;
+    }
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    onMsg(err.error ?? "Lỗi lưu thẻ");
   };
 
   const deleteNote = async () => {
@@ -151,12 +227,64 @@ export function AnkiBrowse({
 
     onMsg("Đã xóa thẻ");
     setDirty(false);
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(deletedId);
+      return next;
+    });
     setSelectedId(null);
     await loadCards();
   };
 
+  const toggleChecked = (id: string, on?: boolean) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (on ?? !next.has(id)) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const toggleCheckAll = () => {
+    if (checkedIds.size === cards.length) {
+      setCheckedIds(new Set());
+    } else {
+      setCheckedIds(new Set(cards.map((c) => c.id)));
+    }
+  };
+
+  const deleteChecked = async () => {
+    if (bulkDeleting || checkedIds.size === 0) return;
+    const ids = [...checkedIds];
+    if (!window.confirm(`Xóa ${ids.length} thẻ đã chọn? Hành động không hoàn tác.`)) return;
+
+    setBulkDeleting(true);
+    const res = await fetch(`/api/admin/courses/${courseId}/cards/bulk-delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    setBulkDeleting(false);
+
+    if (!res.ok) {
+      onMsg("Không xóa được các thẻ đã chọn");
+      return;
+    }
+
+    const data = (await res.json()) as { deleted?: number };
+    onMsg(`Đã xóa ${data.deleted ?? ids.length} thẻ`);
+    setCheckedIds(new Set());
+    setDirty(false);
+    if (selectedId && ids.includes(selectedId)) setSelectedId(null);
+    await loadCards();
+  };
+
   const addNote = useCallback(async () => {
-    const section = (sectionFilter || defaultSection) as StudySectionId;
+    const section = activeBrowseSection;
+    setSearch("");
+    setCardState("");
+    setSidebarFilter("");
+
     const res = await fetch(`/api/admin/courses/${courseId}/cards`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -168,24 +296,52 @@ export function AnkiBrowse({
         extraFields: {},
       }),
     });
-    const card = await res.json();
-    if (res.ok) {
-      onMsg("Đã thêm thẻ mới — sửa nội dung bên phải rồi bấm Lưu");
-      await loadCards();
-      setSelectedId(card.id);
-    } else {
-      onMsg("Không thêm được thẻ");
+    let card: FlashcardRecord | null = null;
+    try {
+      card = (await res.json()) as FlashcardRecord;
+    } catch {
+      card = null;
     }
-  }, [courseId, sectionFilter, defaultSection, loadCards, onMsg]);
+    if (res.ok && card?.id) {
+      pendingSelectRef.current = card.id;
+      setCheckedIds(new Set());
+      onMsg("Đã thêm thẻ mới — điền nội dung bên phải rồi bấm Lưu");
+      setSelectedId(card.id);
+      setFields(buildNoteFieldRows(card, activeFieldDefsRaw));
+      setEditSection(section);
+      setDirty(true);
+      await loadCards();
+      pendingSelectRef.current = card.id;
+      setDirty(true);
+    } else {
+      const err = card as unknown as { error?: string };
+      onMsg(err?.error ?? "Không thêm được thẻ — thử reload trang");
+    }
+  }, [courseId, activeBrowseSection, loadCards, onMsg, activeFieldDefsRaw]);
 
   useEffect(() => {
     if (onAddNoteRef) onAddNoteRef.current = () => void addNote();
   }, [addNote, onAddNoteRef]);
 
-  const pickDeck = (section: string, deckName: string) => {
-    setSectionFilter(section);
+  const pickSection = (sectionId: StudySectionId) => {
+    setSectionFilter(sectionId);
     setCardState("");
-    setSearch(`deck:"${deckName}" `);
+    setSearch("");
+    setCheckedIds(new Set());
+  };
+
+  const pickSubdeck = (sectionId: StudySectionId, subdeckName: string) => {
+    setSectionFilter(sectionId);
+    setCardState("");
+    setSearch(`subdeck:"${subdeckName}"`);
+    setCheckedIds(new Set());
+  };
+
+  const showAllInCourse = () => {
+    setSectionFilter(primarySection);
+    setCardState("");
+    setSearch("");
+    setCheckedIds(new Set());
   };
 
   const filterByFlag = (n: number) => {
@@ -323,7 +479,14 @@ export function AnkiBrowse({
           {(!sidebarFilter || /deck|hsk|vocab|ngữ|grammar|common/i.test(sidebarFilter)) && (
             <>
           <h4>Decks</h4>
-          <button type="button" className="anki-win-deck" onClick={() => setExpanded((p) => ({ ...p, root: !p.root }))}>
+          <button
+            type="button"
+            className={`anki-win-deck ${sectionFilter === primarySection && !search.trim() ? "sel" : ""}`}
+            onClick={() => {
+              setExpanded((p) => ({ ...p, root: !p.root }));
+              showAllInCourse();
+            }}
+          >
             <span className="chev">{expanded.root ? "▾" : "▸"}</span>
             <span className="name">{courseTitle.toUpperCase()}</span>
           </button>
@@ -335,40 +498,28 @@ export function AnkiBrowse({
                 <button
                   key={s.id}
                   type="button"
-                  className={`anki-win-deck child ${sectionFilter === s.id ? "sel" : ""}`}
-                  onClick={() => pickDeck(s.id, s.label)}
+                  className={`anki-win-deck child ${sectionFilter === s.id && !search.includes("subdeck:") ? "sel" : ""}`}
+                  onClick={() => pickSection(s.id)}
                 >
                   <span className="chev">▸</span>
                   <span className="name">{s.label}</span>
+                  {bySection[s.id] != null && (
+                    <span className="anki-deck-count-badge">{bySection[s.id]}</span>
+                  )}
                 </button>
               ))}
-              {(!sidebarFilter || /hsk|vocab|từ/i.test(sidebarFilter)) && (
-                <>
-              <button
-                type="button"
-                className={`anki-win-deck child ${sectionFilter === "vocabulary" ? "sel" : ""}`}
-                onClick={() => {
-                  setExpanded((p) => ({ ...p, hsk3: !p.hsk3 }));
-                  pickDeck("vocabulary", "TỪ VỰNG HSK3");
-                }}
-              >
-                <span className="chev">{expanded.hsk3 ? "▾" : "▸"}</span>
-                <span className="name">TỪ VỰNG HSK3</span>
-              </button>
-              {expanded.hsk3 &&
-                Array.from({ length: Math.min(11, Math.ceil((bySection.vocabulary ?? 0) / 50) || 3) }, (_, i) => (
+              {subdecks.length > 0 &&
+                subdecks.map((sub) => (
                   <button
-                    key={i}
+                    key={sub}
                     type="button"
-                    className="anki-win-deck grandchild"
-                    onClick={() => pickDeck("vocabulary", `Từ vựng HSK3 - P${i + 1}`)}
+                    className={`anki-win-deck grandchild ${search.includes(sub) ? "sel" : ""}`}
+                    onClick={() => pickSubdeck(primarySection, sub)}
                   >
                     <span className="chev">▸</span>
-                    <span className="name">Từ vựng HSK3 - P{i + 1}</span>
+                    <span className="name">{sub}</span>
                   </button>
                 ))}
-                </>
-              )}
             </>
           )}
             </>
@@ -382,9 +533,18 @@ export function AnkiBrowse({
             <button type="button" className="anki-win-add-btn" onClick={() => void addNote()}>
               + Thêm thẻ
             </button>
+            {checkedIds.size > 0 && (
+              <button
+                type="button"
+                className="anki-win-bulk-delete"
+                disabled={bulkDeleting}
+                onClick={() => void deleteChecked()}
+              >
+                {bulkDeleting ? "Đang xóa…" : `Xóa đã chọn (${checkedIds.size})`}
+              </button>
+            )}
             <label className="anki-win-notes-toggle">
-              Notes
-              <input type="checkbox" defaultChecked readOnly />
+              <span className="anki-browse-section-tag">{activePreset.noteTypeLabel}</span>
             </label>
             <input
               className="anki-win-search"
@@ -410,6 +570,7 @@ export function AnkiBrowse({
           ) : (
             <table className="anki-win-table">
               <colgroup>
+                <col className="col-check" />
                 <col className="col-sort" />
                 <col className="col-type" />
                 <col className="col-cards" />
@@ -417,7 +578,15 @@ export function AnkiBrowse({
               </colgroup>
               <thead>
                 <tr>
-                  <th>Sort Field</th>
+                  <th className="col-check-h">
+                    <input
+                      type="checkbox"
+                      checked={cards.length > 0 && checkedIds.size === cards.length}
+                      onChange={toggleCheckAll}
+                      title="Chọn tất cả"
+                    />
+                  </th>
+                  <th>{sortFieldLabel(activeBrowseSection)}</th>
                   <th>Note Type</th>
                   <th className="col-cards-h">Cards</th>
                   <th>Tags</th>
@@ -427,10 +596,19 @@ export function AnkiBrowse({
                 {cards.map((c) => (
                   <tr
                     key={c.id}
-                    className={selectedId === c.id ? "sel" : ""}
+                    className={`${selectedId === c.id ? "sel" : ""} ${checkedIds.has(c.id) ? "checked" : ""}`}
                     onClick={() => setSelectedId(c.id)}
                   >
-                    <td className="sort" title={c.pinyin || c.front}>{c.pinyin || c.front}</td>
+                    <td className="check-col" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={checkedIds.has(c.id)}
+                        onChange={() => toggleChecked(c.id)}
+                      />
+                    </td>
+                    <td className="sort" title={sortFieldValue(c, c.section)}>
+                      {sortFieldValue(c, c.section) || <span className="anki-empty-cell">(trống)</span>}
+                    </td>
                     <td className="ntype" title={noteTypeLabel(c.section)}>{noteTypeLabel(c.section)}</td>
                     <td className="cards-col">{c.cardCount ?? 1}</td>
                     <td className="tags-col" title={c.tags ?? getTags(c)}>{c.tags ?? getTags(c)}</td>
@@ -444,7 +622,7 @@ export function AnkiBrowse({
 
         {/* RIGHT EDITOR */}
         <div className="anki-win-editor">
-          {!selected ? (
+          {!selected && !pendingSelectRef.current ? (
             <div className="anki-win-empty-state">
               <p>Chưa chọn thẻ — hoặc tạo thẻ mới.</p>
               <button type="button" className="anki-win-add-btn large" onClick={() => void addNote()}>
@@ -476,7 +654,7 @@ export function AnkiBrowse({
                   <button type="button" onClick={() => void cardAction({ suspend: true })} title="Suspend">⏸</button>
                   <button type="button" onClick={() => void cardAction({ bury: true })} title="Bury">⊘</button>
                   <select
-                    value={selected.flag ?? 0}
+                    value={selected?.flag ?? 0}
                     onChange={(e) => void setCardFlag(Number(e.target.value))}
                     title="Flag"
                   >
@@ -601,7 +779,7 @@ export function AnkiBrowse({
       </div>
     </div>
 
-    {previewOpen && selected && (
+    {previewOpen && selectedId && (
       <div className="anki-preview-overlay" onClick={() => setPreviewOpen(false)}>
         <div className="anki-preview-card" onClick={(e) => e.stopPropagation()}>
           <h3>Preview</h3>

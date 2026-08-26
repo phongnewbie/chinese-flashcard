@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { sectionLabel, type StudySectionId } from "@/lib/sections";
-import { IMPORT_COLUMN_HINTS, type ImportPreview } from "@/lib/import-cards";
+import { importFieldNamesForSection } from "@/lib/section-presets";
+import { type ImportPreview } from "@/lib/import-cards";
 import { resolveFieldDefs } from "@/lib/anki-note-fields";
 import { PersistenceBanner } from "@/components/persistence-banner";
 import { ImportFileButton } from "@/app/admin/admin-ui";
@@ -37,12 +37,15 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const addNoteRef = useRef<(() => void) | null>(null);
 
+  const [browseRefresh, setBrowseRefresh] = useState(0);
+
   const reload = useCallback(() => {
     fetch(`/api/admin/courses/${courseId}`, { cache: "no-store" })
       .then((r) => r.json())
       .then(setCourse);
     fetch("/api/admin/audio", { cache: "no-store" }).then((r) => r.json()).then(setAudioList);
     fetch("/api/admin/images", { cache: "no-store" }).then((r) => r.json()).then(setImageList);
+    setBrowseRefresh((n) => n + 1);
   }, [courseId]);
 
   useEffect(() => {
@@ -133,6 +136,11 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
     );
   }
 
+  const importFields = importFieldNamesForSection(
+    course.primarySection ?? "vocabulary",
+    course.fieldDefs,
+  );
+
   if (tab === "browse") {
     return (
       <div style={{ background: "#ece9e8", minHeight: "100vh", padding: 8 }}>
@@ -152,6 +160,7 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
           courseTitle={course.title}
           defaultSection={(course.primarySection as StudySectionId | null) ?? "vocabulary"}
           fieldDefsRaw={course.fieldDefs}
+          refreshToken={browseRefresh}
           onMsg={setMsg}
           onAddNoteRef={addNoteRef}
           onOpenSettings={() => setTab("settings")}
@@ -181,9 +190,9 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
           <section className="space-y-4">
             <h2 className="font-semibold">Import Excel / Notepad</h2>
             <p className="text-sm text-stone-600">
-              <strong>Từ vựng:</strong> Tiếng Trung · Pinyin · Nghĩa hán việt · Loại từ · Nghĩa tiếng Việt · Đặt câu
-              {" · "}
-              <strong>Ngữ pháp / Sắp xếp / Giao tiếp:</strong> xem trường tương ứng trong Browse sau khi tạo bộ thẻ.
+              Hàng 1 của Excel phải là tiêu đề cột trùng với trường trong Browse. Thứ tự cột gợi ý:
+              {" "}
+              <strong>{importFields.join(" · ")}</strong>
             </p>
             <div className="flex gap-4 text-sm">
               <label><input type="radio" checked={importMode === "append"} onChange={() => setImportMode("append")} /> Thêm</label>
@@ -197,7 +206,57 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
             {previewLoading && <p className="text-sm text-stone-500">Đang đọc file…</p>}
             {preview && (
               <div className="border rounded-lg p-4 space-y-3 bg-emerald-50/50">
-                <p className="font-medium">Xem trước: {preview.total} câu — cột: {preview.detectedColumns.join(", ")}</p>
+                <p className="font-medium">Xem trước: {preview.total} câu</p>
+                {preview.expectedFields?.length > 0 && (
+                  <div className="text-sm">
+                    <p className="text-stone-600 mb-1">Trường trong bộ thẻ:</p>
+                    <p className="font-mono text-xs">{preview.expectedFields.join(" · ")}</p>
+                  </div>
+                )}
+                {Object.keys(preview.columnMapping ?? {}).length > 0 ? (
+                  <table className="text-sm w-full border-collapse">
+                    <thead>
+                      <tr className="text-left text-stone-500">
+                        <th className="pr-4 pb-1">Cột Excel</th>
+                        <th className="pb-1">→ Trường</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(preview.columnMapping).map(([excelCol, field]) => (
+                        <tr key={excelCol}>
+                          <td className="pr-4 py-0.5 font-mono text-xs">{excelCol}</td>
+                          <td className="py-0.5">{field}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="text-sm text-amber-700">
+                    Không khớp tiêu đề cột — dữ liệu được gán theo thứ tự cột (cột 1 = {preview.expectedFields?.[0] ?? "…"}).
+                  </p>
+                )}
+                {preview.warnings?.length > 0 && (
+                  <ul className="text-sm text-amber-700 list-disc pl-5">
+                    {preview.warnings.map((w) => (
+                      <li key={w}>{w}</li>
+                    ))}
+                  </ul>
+                )}
+                {preview.sample?.length > 0 && (
+                  <details className="text-sm">
+                    <summary className="cursor-pointer text-stone-600">Mẫu 3 dòng đầu</summary>
+                    <ul className="mt-2 space-y-1 font-mono text-xs">
+                      {preview.sample.slice(0, 3).map((c, i) => (
+                        <li key={i}>
+                          {c.front} · {c.pinyin ?? "—"} · {c.back}
+                          {c.extraFields && Object.keys(c.extraFields).length > 0
+                            ? ` · +${Object.keys(c.extraFields).length} trường`
+                            : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
                 <button type="button" className="rounded-lg bg-emerald-600 text-white px-4 py-2 text-sm" onClick={() => void confirmImport()}>
                   Import {preview.total} câu
                 </button>

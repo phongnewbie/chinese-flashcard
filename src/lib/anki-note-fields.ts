@@ -4,7 +4,10 @@ import {
   getFieldStyle,
   resolveFieldDefEntries,
   resolveFieldNames,
+  serializeFieldDefEntries,
 } from "@/lib/field-defs";
+import { getSectionPreset } from "@/lib/section-presets";
+import type { StudySectionId } from "@/lib/sections";
 
 export { DEFAULT_NOTE_TYPE_FIELDS };
 
@@ -36,6 +39,36 @@ const IMAGE_LABELS = new Set(["ẢNH", "Hình ảnh", "Image"]);
 /** Danh sách field của note type — dùng default nếu chưa lưu */
 export function resolveFieldDefs(raw: string | null | undefined): string[] {
   return resolveFieldNames(raw);
+}
+
+/** Field defs JSON theo mục học — ưu tiên preset, ghi đè nếu bộ thẻ đúng mục đó */
+export function fieldDefsRawForSection(
+  section: StudySectionId,
+  coursePrimarySection: StudySectionId,
+  courseFieldDefsRaw: string | null | undefined,
+  localOverride?: string | null,
+): string {
+  if (section === coursePrimarySection) {
+    const raw = localOverride ?? courseFieldDefsRaw;
+    if (raw?.trim()) return raw;
+  }
+  return serializeFieldDefEntries(getSectionPreset(section).fieldDefs);
+}
+
+/** Giá trị cột Sort Field theo preset mục học */
+export function sortFieldValue(card: FlashcardRecord, section?: string): string {
+  const sec = (section ?? card.section) as StudySectionId;
+  const preset = getSectionPreset(sec);
+  const sortName =
+    preset.fieldDefs.find((f) => f.sortField)?.name ?? preset.fieldDefs[0]?.name ?? "Front";
+  const rows = buildNoteFieldRows(card, serializeFieldDefEntries(preset.fieldDefs));
+  const row = rows.find((r) => r.label === sortName);
+  return row?.value?.trim() || card.front?.trim() || "";
+}
+
+export function sortFieldLabel(section: StudySectionId): string {
+  const preset = getSectionPreset(section);
+  return preset.fieldDefs.find((f) => f.sortField)?.name ?? preset.fieldDefs[0]?.name ?? "Sort";
 }
 
 export type NoteFieldRow = {

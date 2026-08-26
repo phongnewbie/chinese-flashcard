@@ -9,6 +9,7 @@ export type ParsedSearch = {
   isNew: boolean | null;
   isLearning: boolean | null;
   isReview: boolean | null;
+  subdeck: string;
 };
 
 export function parseAnkiSearch(raw: string): ParsedSearch {
@@ -21,6 +22,7 @@ export function parseAnkiSearch(raw: string): ParsedSearch {
     isNew: null,
     isLearning: null,
     isReview: null,
+    subdeck: "",
   };
 
   let rest = raw.trim();
@@ -28,6 +30,11 @@ export function parseAnkiSearch(raw: string): ParsedSearch {
   if (deckM) {
     out.deck = deckM[1];
     rest = rest.replace(deckM[0], " ");
+  }
+  const subdeckM = rest.match(/subdeck:"([^"]+)"/i);
+  if (subdeckM) {
+    out.subdeck = subdeckM[1];
+    rest = rest.replace(subdeckM[0], " ");
   }
   const tagM = rest.match(/tag:(\S+)/i);
   if (tagM) {

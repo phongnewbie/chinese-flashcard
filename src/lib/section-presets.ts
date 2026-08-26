@@ -243,7 +243,8 @@ export const IMPORT_FIELD_ALIASES: Record<string, string> = {
   "han viet": "Nghĩa hán việt",
   "loai tu": "Loại từ",
   "nghia tieng viet": "Nghĩa tiếng Việt",
-  "nghia": "Nghĩa tiếng Việt",
+  "nghia viet": "Nghĩa tiếng Việt",
+  "y nghia": "Nghĩa tiếng Việt",
   "dat cau": "Đặt câu",
   "cau vi du": "Đặt câu",
   "vi du": "Ví dụ",
@@ -258,6 +259,7 @@ export const IMPORT_FIELD_ALIASES: Record<string, string> = {
   "cum tu": "CÂU TRẢ LỜI",
   pinyin: "Pinyin",
   "phien am": "Pinyin",
+  "phiên âm": "Pinyin",
   "am thanh": "ÂM THANH",
   audio: "ÂM THANH",
   anh: "ẢNH",
@@ -299,4 +301,29 @@ export function coreFieldForSection(
     },
   };
   return maps[section]?.[canonicalField] ?? null;
+}
+
+/** Tên trường dùng khi import — ưu tiên fieldDefs của bộ thẻ nếu hợp lệ */
+export function importFieldNamesForSection(
+  section: string,
+  courseFieldDefsRaw?: string | null,
+): string[] {
+  const preset = getSectionPreset(section);
+  const presetNames = preset.fieldDefs.map((f) => f.name);
+
+  if (courseFieldDefsRaw?.trim() && !courseNeedsPresetFields(section, courseFieldDefsRaw)) {
+    try {
+      const arr = JSON.parse(courseFieldDefsRaw) as unknown;
+      if (Array.isArray(arr) && arr.length > 0) {
+        const names = arr.map((item) =>
+          typeof item === "string" ? item.trim() : (item as { name?: string }).name?.trim() ?? "",
+        ).filter(Boolean);
+        if (names.length > 0) return names;
+      }
+    } catch {
+      /* fallback preset */
+    }
+  }
+
+  return presetNames;
 }

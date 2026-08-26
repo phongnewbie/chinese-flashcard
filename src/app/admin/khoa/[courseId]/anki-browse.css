@@ -83,6 +83,70 @@
   background: #047857;
 }
 
+.anki-browse-section-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.anki-deck-count-badge {
+  margin-left: auto;
+  font-size: 10px;
+  color: #78716c;
+  padding-right: 6px;
+}
+
+.anki-win-deck.child .name,
+.anki-win-deck.grandchild .name {
+  flex: 1;
+  text-align: left;
+}
+
+.anki-win-deck.child,
+.anki-win-deck.grandchild {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.anki-win-bulk-delete {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 12px;
+  background: #dc2626;
+  color: #fff;
+  border: 1px solid #b91c1c;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.anki-win-bulk-delete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.col-check,
+.col-check-h,
+.check-col {
+  width: 28px;
+  text-align: center;
+}
+
+.anki-win-table tr.checked {
+  background: #fef2f2;
+}
+
+.anki-empty-cell {
+  color: #a8a29e;
+  font-style: italic;
+}
+
 .anki-win-add-btn.large {
   font-size: 13px;
   padding: 8px 20px;

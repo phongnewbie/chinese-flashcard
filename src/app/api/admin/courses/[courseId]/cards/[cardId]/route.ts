@@ -32,8 +32,13 @@ export async function PATCH(req: Request, context: RouteContext) {
     subdeck?: string | null;
   };
 
-  const existing = await prisma.flashcard.findFirst({ where: { id: cardId, courseId } });
-  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const existing = await prisma.flashcard.findUnique({ where: { id: cardId } });
+  if (!existing) {
+    return NextResponse.json({ error: "Thẻ không tồn tại" }, { status: 404 });
+  }
+  if (existing.courseId !== courseId) {
+    return NextResponse.json({ error: "Thẻ không thuộc bộ này" }, { status: 404 });
+  }
 
   const card = await prisma.flashcard.update({
     where: { id: cardId },

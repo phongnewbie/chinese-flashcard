@@ -52,6 +52,10 @@ export async function GET(req: Request, context: RouteContext) {
   if (parsed.tag) {
     cards = cards.filter((c) => cardMatchesTag(c, parsed.tag));
   }
+  if (parsed.subdeck) {
+    const q = parsed.subdeck.toLowerCase();
+    cards = cards.filter((c) => c.subdeck?.toLowerCase().includes(q));
+  }
 
   const cardIds = cards.map((c) => c.id);
   const allReviews = cardIds.length
@@ -117,5 +121,15 @@ export async function GET(req: Request, context: RouteContext) {
     cards: cardsWithMeta,
     total,
     bySection: Object.fromEntries(bySection.map((r) => [r.section, r._count.id])),
+    subdecks: (
+      await prisma.flashcard.findMany({
+        where: { courseId, subdeck: { not: null } },
+        distinct: ["subdeck"],
+        select: { subdeck: true },
+        orderBy: { subdeck: "asc" },
+      })
+    )
+      .map((r) => r.subdeck)
+      .filter((s): s is string => !!s?.trim()),
   });
 }

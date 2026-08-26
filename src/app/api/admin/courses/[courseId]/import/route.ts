@@ -6,7 +6,7 @@ import {
 } from "@/lib/import-cards";
 import { mergeFieldDefs, stringifyExtraFields } from "@/lib/fields";
 import { resolveFieldNames, serializeFieldDefEntries, resolveFieldDefEntries } from "@/lib/field-defs";
-import { getSectionPreset, courseNeedsPresetFields } from "@/lib/section-presets";
+import { getSectionPreset, courseNeedsPresetFields, importFieldNamesForSection } from "@/lib/section-presets";
 import type { StudySectionId } from "@/lib/sections";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
@@ -44,11 +44,12 @@ async function handleImport(req: Request, context: RouteContext) {
   }
 
   const buffer = await file.arrayBuffer();
-  const result: ImportPreview = parseImportFile(
-    buffer,
-    file.name,
-    (course.primarySection as StudySectionId | null) ?? undefined,
-  );
+  const section = (course.primarySection as StudySectionId | null) ?? "vocabulary";
+  const fieldNames = importFieldNamesForSection(section, course.fieldDefs);
+  const result: ImportPreview = parseImportFile(buffer, file.name, {
+    deckSection: section,
+    fieldNames,
+  });
 
   if (result.total === 0) {
     return NextResponse.json(
@@ -83,7 +84,6 @@ async function handleImport(req: Request, context: RouteContext) {
     sortOrder: order + i + 1,
   }));
 
-  const section = (course.primarySection as StudySectionId | null) ?? "vocabulary";
   const preset = getSectionPreset(section);
   const presetNames = preset.fieldDefs.map((f) => f.name);
   const existingNames = resolveFieldNames(course.fieldDefs);
