@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { importFieldNamesForSection } from "@/lib/section-presets";
+import { sectionLabel, type StudySectionId } from "@/lib/sections";
 import { type ImportPreview } from "@/lib/import-cards";
 import { resolveFieldDefs } from "@/lib/anki-note-fields";
 import { PersistenceBanner } from "@/components/persistence-banner";
