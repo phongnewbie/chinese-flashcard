@@ -506,7 +506,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
           onClick={() => !flipped && setFlipped(true)}
 
-          className="w-full min-h-[280px] rounded-xl border-2 border-[#8fad8f] bg-white p-4 shadow-sm text-left transition hover:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          className="anki-card-shell w-full rounded-xl border-2 border-[#8fad8f] bg-white p-4 shadow-sm text-left transition hover:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400"
 
         >
 

@@ -173,6 +173,75 @@ body {
   background: linear-gradient(180deg, #c5c5c5 0%, #d8d8d8 100%);
   min-height: 520px;
 }
+
+/* Thẻ học — kích thước cố định, nội dung dài thì cuộn */
+.anki-card-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: min(360px, 52vh);
+  min-height: 280px;
+  max-height: 420px;
+  box-sizing: border-box;
+}
+
+.anki-card-content {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-overflow-scrolling: touch;
+}
+
+.anki-card-content .card {
+  width: 100%;
+  margin: auto;
+  box-sizing: border-box;
+}
+
+.anki-card-content .hanzi,
+.anki-card-content .hanzi-ref,
+.anki-card-content .answer-cn {
+  font-size: clamp(1.5rem, 5vw, 2.25rem) !important;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.anki-card-content .meaning,
+.anki-card-content .explain {
+  font-size: clamp(1.125rem, 3.5vw, 1.5rem) !important;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.anki-card-content .pinyin {
+  font-size: clamp(1rem, 3vw, 1.125rem) !important;
+}
+
+.anki-card-content .meta-row,
+.anki-card-content .example,
+.anki-card-content .note {
+  font-size: 0.9rem !important;
+  max-height: 8rem;
+  overflow-y: auto;
+}
+
+.anki-card-content .hint {
+  font-size: 0.7rem !important;
+  margin-top: 1rem !important;
+  flex-shrink: 0;
+}
+
+.anki-card-content img.field-img {
+  max-width: min(240px, 100%);
+  max-height: 160px;
+  object-fit: contain;
+}
+
 .hsk-header-pill {
   background: #8fad8f;
   color: #fff;

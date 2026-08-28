@@ -20,7 +20,9 @@ function field(
 
 const BASE_CARD_CSS = `.card {
   text-align: center;
-  padding: 1.25rem 1.5rem;
+  padding: 1rem 1.25rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 .hanzi, .hanzi-ref, .answer-cn {
   font-size: 2.25rem;
