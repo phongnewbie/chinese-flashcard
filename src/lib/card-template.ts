@@ -1,4 +1,6 @@
 import { parseExtraFields } from "@/lib/fields";
+import { resolveAudioUrl } from "@/lib/import-cards";
+import { resolveImageSrc } from "@/lib/paste-image";
 import { resolveCourseTemplates, type SectionTemplatesMap } from "@/lib/section-templates";
 
 export type TemplateFields = Record<string, string>;
@@ -66,6 +68,38 @@ function isAudioValue(val: string): boolean {
   return /\.(mp3|wav|ogg|m4a|webm)(\?|$)/i.test(val) || val.startsWith("/uploads/audio");
 }
 
+function isImageFieldKey(key: string): boolean {
+  const k = key.toLowerCase();
+  return (
+    k === "ảnh" ||
+    k === "image" ||
+    k.includes("hình ảnh") ||
+    k.includes("hinh anh") ||
+    (k.includes("anh") && !k.includes("thanh") && !k.includes("han"))
+  );
+}
+
+function isImageFilename(val: string): boolean {
+  return /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(val) && !/<img/i.test(val);
+}
+
+/** Chỉ giữ thẻ img trỏ uploads hoặc https */
+function sanitizeEmbeddedImages(html: string): string {
+  let out = html.replace(
+    /<div\b[^>]*class=["'][^"']*field-img-wrap[^"']*["'][^>]*style=["']text-align:([^"']+)["'][^>]*>([\s\S]*?)<\/div>/gi,
+    (_full, align: string, inner: string) => {
+      const img = inner.match(/<img\b[^>]*\ssrc=["']([^"']+)["']/i);
+      if (!img?.[1] || !/^(\/uploads\/images\/|https?:\/\/)/i.test(img[1].trim())) return "";
+      return `<div class="field-img-wrap" style="text-align:${escapeHtml(align.trim())}">${sanitizeEmbeddedImages(inner)}</div>`;
+    },
+  );
+  out = out.replace(/<img\b[^>]*\ssrc=["']([^"']+)["'][^>]*\/?>/gi, (_full, src: string) => {
+    if (!/^(\/uploads\/images\/|https?:\/\/)/i.test(src.trim())) return "";
+    return `<img src="${escapeHtml(src.trim())}" alt="" class="field-img" style="max-width:100%;height:auto;" />`;
+  });
+  return out;
+}
+
 function fieldToHtml(key: string, val: string, side: "front" | "back"): string {
   if (!val) return "";
   const k = key.toLowerCase();
@@ -78,6 +112,13 @@ function fieldToHtml(key: string, val: string, side: "front" | "back"): string {
     return side === "back"
       ? `<button type="button" class="audio-btn" data-audio="${escapeHtml(val)}">🔊 Nghe</button>`
       : escapeHtml(val);
+  }
+  if (/<img\b/i.test(val) || /field-img-wrap/i.test(val)) {
+    return sanitizeEmbeddedImages(val);
+  }
+  if (isImageFieldKey(k) && isImageFilename(val)) {
+    const src = escapeHtml(resolveImageSrc(val));
+    return `<img src="${src}" alt="" class="field-img" style="max-width:100%;height:auto;" />`;
   }
   return escapeHtml(val);
 }
@@ -135,7 +176,7 @@ export function toCardFields(card: {
     Front: card.front,
     Back: card.back,
     Pinyin: card.pinyin ?? "",
-    Audio: card.audioUrl ?? "",
+    Audio: resolveAudioUrl(card.audioUrl ?? undefined, "/uploads/audio") ?? "",
     Section: card.section ?? "",
     "Tiếng Trung": card.front,
     "Nghĩa tiếng Việt": card.back,

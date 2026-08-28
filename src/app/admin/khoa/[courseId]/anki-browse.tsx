@@ -16,6 +16,12 @@ import {
 import { requiredFieldLabels, getSectionPreset } from "@/lib/section-presets";
 import { STUDY_SECTIONS, sectionLabel, type StudySectionId } from "@/lib/sections";
 import { AnkiFieldsDialog } from "./anki-fields-dialog";
+import { AnkiImageField, fieldImagePreview } from "./anki-image-field";
+import {
+  applyImageToFieldValue,
+  clipboardImageFile,
+  uploadImageFile,
+} from "@/lib/paste-image";
 import "./anki-browse.css";
 
 type Props = {
@@ -65,6 +71,9 @@ export function AnkiBrowse({
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const pendingSelectRef = useRef<string | null>(null);
+  const focusedFieldRef = useRef<NoteFieldRow | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [imageUploading, setImageUploading] = useState(false);
 
   const selected = cards.find((c) => c.id === selectedId) ?? null;
   const selectedIndex = cards.findIndex((c) => c.id === selectedId);
@@ -156,6 +165,51 @@ export function AnkiBrowse({
   const updateField = (key: string, value: string) => {
     setFields((prev) => prev.map((f) => (f.key === key ? { ...f, value } : f)));
     setDirty(true);
+  };
+
+  const attachImageToField = async (
+    file: File,
+    field: NoteFieldRow,
+    selection?: { start: number; end: number },
+  ) => {
+    setImageUploading(true);
+    try {
+      const uploaded = await uploadImageFile(file);
+      const next = applyImageToFieldValue(field.value, uploaded, {
+        isImageField: !!field.isImage,
+        multiline: field.multiline,
+      }, selection);
+      updateField(field.key, next);
+      onMsg(`Đã thêm ảnh: ${uploaded.fileName}`);
+    } catch (err) {
+      onMsg(err instanceof Error ? err.message : "Không tải được ảnh");
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  const onFieldPaste = (
+    e: React.ClipboardEvent,
+    field: NoteFieldRow,
+  ) => {
+    const file = clipboardImageFile(e.clipboardData);
+    if (!file) return;
+    e.preventDefault();
+    const el = e.currentTarget as HTMLTextAreaElement | HTMLInputElement;
+    const selection =
+      "selectionStart" in el
+        ? { start: el.selectionStart ?? el.value.length, end: el.selectionEnd ?? el.value.length }
+        : undefined;
+    void attachImageToField(file, field, selection);
+  };
+
+  const onPickImageFile = (file: File | null) => {
+    const field = focusedFieldRef.current;
+    if (!file || !field) {
+      if (!field) onMsg("Chọn trường cần chèn ảnh trước (click vào ô nhập)");
+      return;
+    }
+    void attachImageToField(file, field);
   };
 
   const saveNote = async () => {
@@ -703,7 +757,25 @@ export function AnkiBrowse({
                 <button type="button">☰</button>
                 <button type="button">•</button>
                 <button type="button">🔗</button>
-                <button type="button">🖼</button>
+                <button
+                  type="button"
+                  title="Chèn ảnh (hoặc Ctrl+V sau khi copy ảnh)"
+                  disabled={imageUploading}
+                  onClick={() => imageInputRef.current?.click()}
+                >
+                  🖼
+                </button>
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  tabIndex={-1}
+                  onChange={(e) => {
+                    onPickImageFile(e.target.files?.[0] ?? null);
+                    e.target.value = "";
+                  }}
+                />
                 <button type="button">♪</button>
                 <button type="button">fx</button>
                 <span className="sep" />
@@ -724,7 +796,15 @@ export function AnkiBrowse({
                         <span className="anki-field-code">&lt;/&gt;</span>
                       </div>
                       <div className="anki-field-body">
-                        {f.multiline ? (
+                        {f.isImage ? (
+                          <AnkiImageField
+                            value={f.value}
+                            uploading={imageUploading && focusedFieldRef.current?.key === f.key}
+                            onChange={(v) => updateField(f.key, v)}
+                            onFocus={() => { focusedFieldRef.current = f; }}
+                            onPaste={(e) => onFieldPaste(e, f)}
+                          />
+                        ) : f.multiline ? (
                           <textarea
                             className={
                               f.label === "VÍ DỤ" ||
@@ -736,8 +816,12 @@ export function AnkiBrowse({
                             }
                             value={f.value}
                             onChange={(e) => updateField(f.key, e.target.value)}
+                            onFocus={() => { focusedFieldRef.current = f; }}
+                            onPaste={(e) => onFieldPaste(e, f)}
                             rows={f.label === "VÍ DỤ" || f.label === "Đặt câu" || f.label === "ĐẶT CÂU" ? 5 : 3}
-                            placeholder={f.placeholder}
+                            placeholder={
+                              f.placeholder ?? (f.multiline ? "Copy ảnh rồi Ctrl+V để chèn" : undefined)
+                            }
                             style={{
                               fontFamily: f.fontFamily ?? "Segoe UI",
                               fontSize: f.fontSize ? `${f.fontSize}px` : undefined,
@@ -748,6 +832,8 @@ export function AnkiBrowse({
                           <input
                             value={f.value}
                             onChange={(e) => updateField(f.key, e.target.value)}
+                            onFocus={() => { focusedFieldRef.current = f; }}
+                            onPaste={(e) => onFieldPaste(e, f)}
                             placeholder={f.placeholder}
                             style={{
                               fontFamily: f.fontFamily ?? "Segoe UI",
@@ -756,9 +842,9 @@ export function AnkiBrowse({
                             }}
                           />
                         )}
-                        {f.isImage && f.value && (
+                        {!f.isImage && /<img\b/i.test(f.value) && fieldImagePreview(f.value) && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={imgUrl(f.value)} alt="" className="img-inline" />
+                          <img src={fieldImagePreview(f.value)!} alt="" className="img-inline" />
                         )}
                       </div>
                     </div>
@@ -807,9 +893,4 @@ export function AnkiBrowse({
     />
     </>
   );
-}
-
-function imgUrl(raw: string): string {
-  if (/^https?:\/\//i.test(raw) || raw.startsWith("/")) return raw;
-  return `/uploads/images/${encodeURIComponent(raw.replace(/^.*[\\/]/, ""))}`;
 }

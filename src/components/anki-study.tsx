@@ -23,6 +23,7 @@ import {
   type TemplateFields,
 
 } from "@/lib/card-template";
+import { resolveAudioUrl } from "@/lib/import-cards";
 
 import { sectionLabel, type StudySectionId } from "@/lib/sections";
 
@@ -215,9 +216,8 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
   const playAudio = (url: string) => {
-
-    void new Audio(url).play();
-
+    const resolved = resolveAudioUrl(url, "/uploads/audio") ?? url;
+    void new Audio(resolved).play();
   };
 
 

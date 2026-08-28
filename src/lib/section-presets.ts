@@ -84,6 +84,7 @@ const VOCABULARY_PRESET: SectionPreset = {
     field(VOCAB_FIELDS.pos),
     field(VOCAB_FIELDS.meaning, { fontSize: 20, htmlEditor: true }),
     field(VOCAB_FIELDS.example, { htmlEditor: true, collapse: false }),
+    field("ÂM THANH", { description: "Tên file mp3 đã upload hoặc [sound:ten.mp3]" }),
   ],
   frontTemplate: `<div class="card front">
   <div class="meaning">{{${VOCAB_FIELDS.meaning}}}</div>

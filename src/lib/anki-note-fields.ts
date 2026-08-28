@@ -7,6 +7,7 @@ import {
   serializeFieldDefEntries,
 } from "@/lib/field-defs";
 import { getSectionPreset } from "@/lib/section-presets";
+import { resolveAudioUrl } from "@/lib/import-cards";
 import type { StudySectionId } from "@/lib/sections";
 
 export { DEFAULT_NOTE_TYPE_FIELDS };
@@ -34,7 +35,7 @@ const MULTILINE_LABELS = new Set([
   "CÁCH NHỚ",
   "CÁCH VIẾT",
 ]);
-const IMAGE_LABELS = new Set(["ẢNH", "Hình ảnh", "Image"]);
+const IMAGE_LABELS = new Set(["ẢNH", "Ảnh", "Hình ảnh", "Image", "IMAGE"]);
 
 /** Danh sách field của note type — dùng default nếu chưa lưu */
 export function resolveFieldDefs(raw: string | null | undefined): string[] {
@@ -243,7 +244,7 @@ export function noteFieldsToCardPayload(
     front: get("front") || getLabel("Tiếng Trung") || getLabel("CHỮ HÁN"),
     back: get("back") || getLabel("Nghĩa tiếng Việt") || getLabel("NGHĨA"),
     pinyin: get("pinyin") || getLabel("Pinyin") || getLabel("PINYIN") || null,
-    audioUrl: audio || null,
+    audioUrl: audio ? (resolveAudioUrl(audio, "/uploads/audio") ?? null) : null,
     extraFields: stringifyExtraFields(extras),
   };
 }

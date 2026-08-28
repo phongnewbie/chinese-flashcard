@@ -666,6 +666,128 @@
   display: block;
 }
 
+/* Trường ẢNH — giống Anki */
+.anki-image-slot {
+  min-height: 100px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid transparent;
+  outline: none;
+  cursor: text;
+}
+
+.anki-image-slot.empty {
+  border: 1px dashed #bbb;
+  background: #fafafa;
+}
+
+.anki-image-slot.selected {
+  outline: 2px solid #4a90d9;
+  outline-offset: -2px;
+}
+
+.anki-image-placeholder {
+  color: #888;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 28px 8px;
+  text-align: center;
+}
+
+.anki-image-uploading {
+  font-size: 11px;
+  color: #4a90d9;
+  margin-bottom: 6px;
+}
+
+.anki-image-wrap {
+  display: block;
+  padding: 4px 0 6px;
+}
+
+.anki-image-wrap.align-left {
+  text-align: left;
+}
+
+.anki-image-wrap.align-center {
+  text-align: center;
+}
+
+.anki-image-wrap.align-right {
+  text-align: right;
+}
+
+.anki-image-wrap.align-full img {
+  max-width: 100%;
+}
+
+.anki-image-wrap img {
+  max-width: min(280px, 100%);
+  max-height: 220px;
+  height: auto;
+  cursor: zoom-in;
+  border: 1px solid #ddd;
+  background: #fff;
+  vertical-align: middle;
+}
+
+.anki-image-slot.selected .anki-image-wrap img {
+  box-shadow: 0 0 0 2px #4a90d9;
+}
+
+.anki-image-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.anki-image-toolbar button {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  font-size: 11px;
+  border: 1px solid #ccc;
+  background: #f0f0f0;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.anki-image-toolbar button.on {
+  background: #dce8f5;
+  border-color: #4a90d9;
+}
+
+.anki-image-toolbar button:hover {
+  background: #e8e8e8;
+}
+
+.anki-image-toolbar-sep {
+  width: 1px;
+  height: 16px;
+  background: #ccc;
+  margin: 0 4px;
+}
+
+.anki-image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+}
+
+.anki-image-lightbox img {
+  max-width: min(92vw, 900px);
+  max-height: 92vh;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 4px;
+}
+
 .anki-tags-bar {
   display: flex;
   align-items: center;

@@ -195,6 +195,9 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
               {" "}
               <strong>{importFields.join(" · ")}</strong>
             </p>
+            <p className="text-sm text-stone-500">
+              Âm thanh kiểu Anki: upload MP3/WAV ở tab <strong>Media</strong>, cột <strong>Âm thanh</strong> ghi tên file (vd: <code className="text-xs">nihao.mp3</code>) hoặc Browse gõ <code className="text-xs">[sound:nihao.mp3]</code>.
+            </p>
             <div className="flex gap-4 text-sm">
               <label><input type="radio" checked={importMode === "append"} onChange={() => setImportMode("append")} /> Thêm</label>
               <label><input type="radio" checked={importMode === "replace"} onChange={() => setImportMode("replace")} /> Thay thế</label>
