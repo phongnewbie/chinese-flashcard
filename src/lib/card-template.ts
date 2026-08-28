@@ -1,5 +1,6 @@
 import { parseExtraFields } from "@/lib/fields";
 import { resolveAudioUrl } from "@/lib/import-cards";
+import { parseSoundFilename, renderTextWithSound, resolveSoundPlayUrl } from "@/lib/anki-sound";
 import { resolveImageSrc } from "@/lib/paste-image";
 import { resolveCourseTemplates, type SectionTemplatesMap } from "@/lib/section-templates";
 
@@ -103,18 +104,30 @@ function sanitizeEmbeddedImages(html: string): string {
 function fieldToHtml(key: string, val: string, side: "front" | "back"): string {
   if (!val) return "";
   const k = key.toLowerCase();
+
+  const soundOnly = parseSoundFilename(val.trim());
+  if (soundOnly && val.trim().match(/^\[sound:[^\]]+\]$/i)) {
+    const url = resolveSoundPlayUrl(soundOnly);
+    return `<button type="button" class="audio-btn" data-audio="${escapeHtml(url)}" title="Nghe">🔊 Nghe</button>`;
+  }
+
   if (k === "audio" || k === "âm thanh" || k === "am thanh") {
-    return side === "back" && isAudioValue(val)
-      ? `<button type="button" class="audio-btn" data-audio="${escapeHtml(val)}">🔊 Nghe</button>`
-      : escapeHtml(val);
+    if (isAudioValue(val)) {
+      const url = resolveSoundPlayUrl(val);
+      return `<button type="button" class="audio-btn" data-audio="${escapeHtml(url)}" title="Nghe">🔊 Nghe</button>`;
+    }
+    if (/\[sound:/i.test(val)) return renderTextWithSound(val);
+    return escapeHtml(val);
   }
   if (isAudioValue(val) && (k.includes("audio") || k.includes("am thanh"))) {
-    return side === "back"
-      ? `<button type="button" class="audio-btn" data-audio="${escapeHtml(val)}">🔊 Nghe</button>`
-      : escapeHtml(val);
+    const url = resolveSoundPlayUrl(val);
+    return `<button type="button" class="audio-btn" data-audio="${escapeHtml(url)}" title="Nghe">🔊 Nghe</button>`;
   }
   if (/<img\b/i.test(val) || /field-img-wrap/i.test(val)) {
     return sanitizeEmbeddedImages(val);
+  }
+  if (/\[sound:/i.test(val)) {
+    return renderTextWithSound(val);
   }
   if (isImageFieldKey(k) && isImageFilename(val)) {
     const src = escapeHtml(resolveImageSrc(val));

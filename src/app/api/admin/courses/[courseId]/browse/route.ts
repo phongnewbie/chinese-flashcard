@@ -26,6 +26,16 @@ export async function GET(req: Request, context: RouteContext) {
   const course = await prisma.course.findUnique({ where: { id: courseId } });
   if (!course) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const needsMemoryFilter =
+    !!parsed.deck ||
+    !!parsed.tag ||
+    !!parsed.subdeck ||
+    parsed.isSuspended ||
+    parsed.isNew ||
+    parsed.isLearning ||
+    parsed.isReview ||
+    !!cardState;
+
   const where: Prisma.FlashcardWhereInput = { courseId };
   if (section) where.section = section;
   if (parsed.flag !== null) where.flag = parsed.flag;
@@ -37,6 +47,46 @@ export async function GET(req: Request, context: RouteContext) {
       { extraFields: { contains: parsed.text } },
       { subdeck: { contains: parsed.text } },
     ];
+  }
+
+  const bySection = await prisma.flashcard.groupBy({
+    by: ["section"],
+    where: { courseId },
+    _count: { id: true },
+  });
+
+  const subdecks = (
+    await prisma.flashcard.findMany({
+      where: { courseId, subdeck: { not: null } },
+      distinct: ["subdeck"],
+      select: { subdeck: true },
+      orderBy: { subdeck: "asc" },
+    })
+  )
+    .map((r) => r.subdeck)
+    .filter((s): s is string => !!s?.trim());
+
+  if (!needsMemoryFilter) {
+    const total = await prisma.flashcard.count({ where });
+    const page = await prisma.flashcard.findMany({
+      where,
+      orderBy: [{ sortOrder: "asc" }, { front: "asc" }],
+      skip: offset,
+      take: limit,
+    });
+
+    const cardsWithMeta = page.map((c) => ({
+      ...c,
+      cardCount: cardTypeCount(c.section, course.cardTypes),
+      tags: parseExtraFields(c.extraFields).Tags ?? "",
+    }));
+
+    return NextResponse.json({
+      cards: cardsWithMeta,
+      total,
+      bySection: Object.fromEntries(bySection.map((r) => [r.section, r._count.id])),
+      subdecks,
+    });
   }
 
   let cards = await prisma.flashcard.findMany({
@@ -105,12 +155,6 @@ export async function GET(req: Request, context: RouteContext) {
   const total = cards.length;
   const page = cards.slice(offset, offset + limit);
 
-  const bySection = await prisma.flashcard.groupBy({
-    by: ["section"],
-    where: { courseId },
-    _count: { id: true },
-  });
-
   const cardsWithMeta = page.map((c) => ({
     ...c,
     cardCount: cardTypeCount(c.section, course.cardTypes),
@@ -121,15 +165,6 @@ export async function GET(req: Request, context: RouteContext) {
     cards: cardsWithMeta,
     total,
     bySection: Object.fromEntries(bySection.map((r) => [r.section, r._count.id])),
-    subdecks: (
-      await prisma.flashcard.findMany({
-        where: { courseId, subdeck: { not: null } },
-        distinct: ["subdeck"],
-        select: { subdeck: true },
-        orderBy: { subdeck: "asc" },
-      })
-    )
-      .map((r) => r.subdeck)
-      .filter((s): s is string => !!s?.trim()),
+    subdecks,
   });
 }

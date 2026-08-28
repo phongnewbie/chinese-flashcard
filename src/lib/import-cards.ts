@@ -468,8 +468,11 @@ export function resolveAudioUrl(
   audioBaseUrl: string,
 ): string | undefined {
   if (!value) return undefined;
-  if (/^https?:\/\//i.test(value) || value.startsWith("/")) return value;
-  const name = value.replace(/^.*[\\/]/, "");
+  let v = value.trim();
+  const sound = v.match(/\[sound:([^\]]+)\]/i);
+  if (sound?.[1]) v = sound[1].trim();
+  if (/^https?:\/\//i.test(v) || v.startsWith("/")) return v;
+  const name = v.replace(/^.*[\\/]/, "");
   return `${audioBaseUrl}/${encodeURIComponent(name)}`;
 }
 

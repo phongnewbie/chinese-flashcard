@@ -817,11 +817,15 @@
 .anki-rich-field img.field-img {
   max-width: min(280px, 100%);
   max-height: 220px;
+  min-height: 40px;
+  min-width: 40px;
   height: auto;
   display: inline-block;
   margin: 4px 0;
   border: 1px solid #ddd;
   vertical-align: middle;
+  object-fit: contain;
+  background: #f5f5f5;
 }
 
 .anki-tags-bar {

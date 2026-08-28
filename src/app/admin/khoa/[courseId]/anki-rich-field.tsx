@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { clipboardImageFile, uploadImageFile } from "@/lib/paste-image";
+import {
+  clipboardImageFile,
+  extractImageSrcFromField,
+  uploadImageFile,
+} from "@/lib/paste-image";
 
 type Props = {
   value: string;
@@ -14,6 +18,40 @@ type Props = {
   placeholder?: string;
   minHeight?: number;
 };
+
+/** Chuẩn hóa HTML cũ (field-img-wrap) → img đơn giản để hiển thị đúng */
+function normalizeRichHtml(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const src = extractImageSrcFromField(trimmed);
+  if (!src) return trimmed;
+  const textOnly = trimmed.replace(/<[^>]*>/g, "").replace(/\s/g, "");
+  if (textOnly === "" || trimmed.includes("field-img-wrap")) {
+    return `<p><img src="${src.replace(/"/g, "")}" alt="" class="field-img" /></p>`;
+  }
+  return trimmed;
+}
+
+function insertImageAtCursor(container: HTMLElement, url: string) {
+  const img = document.createElement("img");
+  img.src = url;
+  img.alt = "";
+  img.className = "field-img";
+
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0 && container.contains(sel.anchorNode)) {
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(img);
+    range.setStartAfter(img);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return;
+  }
+
+  container.appendChild(img);
+}
 
 /** Trường HTML (GHI CHÚ, VÍ DỤ…) — paste ảnh hiện ngay trong ô, giống Anki */
 export function AnkiRichField({
@@ -34,7 +72,7 @@ export function AnkiRichField({
     const el = ref.current;
     if (!el || value === lastValueRef.current) return;
     lastValueRef.current = value;
-    const html = value.trim() ? value : "";
+    const html = normalizeRichHtml(value);
     if (el.innerHTML !== html) {
       el.innerHTML = html || "";
     }
@@ -42,7 +80,7 @@ export function AnkiRichField({
 
   const sync = () => {
     const html = ref.current?.innerHTML ?? "";
-    const normalized = html === "<br>" ? "" : html;
+    const normalized = html === "<br>" || html === "<p><br></p>" ? "" : html;
     lastValueRef.current = normalized;
     onChange(normalized);
   };
@@ -51,12 +89,14 @@ export function AnkiRichField({
     const file = clipboardImageFile(e.clipboardData);
     if (!file) return;
     e.preventDefault();
+    e.stopPropagation();
     onUploadStart?.();
     try {
       const uploaded = await uploadImageFile(file);
-      const tag = `<img src="${uploaded.url.replace(/"/g, "")}" alt="" class="field-img" />`;
-      ref.current?.focus();
-      document.execCommand("insertHTML", false, tag);
+      const el = ref.current;
+      if (!el) return;
+      el.focus();
+      insertImageAtCursor(el, uploaded.url);
       sync();
     } catch (err) {
       onError?.(err instanceof Error ? err.message : "Không tải được ảnh");

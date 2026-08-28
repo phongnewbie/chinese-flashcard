@@ -8,6 +8,7 @@ import {
 } from "@/lib/field-defs";
 import { getSectionPreset } from "@/lib/section-presets";
 import { resolveAudioUrl } from "@/lib/import-cards";
+import { firstSoundInText, parseSoundFilename, toSoundTag } from "@/lib/anki-sound";
 import { isImageFieldLabel } from "@/lib/paste-image";
 import type { StudySectionId } from "@/lib/sections";
 
@@ -185,7 +186,7 @@ function fieldRowForLabel(
           : core.key === "pinyin"
             ? card.pinyin ?? ""
             : card.audioUrl
-              ? `[sound:${card.audioUrl.replace(/^.*\//, "")}]`
+              ? toSoundTag(card.audioUrl)
               : "";
     return {
       key: core.key,
@@ -235,12 +236,27 @@ export function noteFieldsToCardPayload(
   }
 
   let audio = get("audioUrl");
-  if (audio.startsWith("[sound:")) {
+  const fromTag = parseSoundFilename(audio);
+  if (fromTag) audio = fromTag;
+  else if (audio.startsWith("[sound:")) {
     audio = audio.replace(/^\[sound:([^\]]+)\]$/, "$1");
   }
+
+  if (!audio) {
+    for (const f of fields) {
+      const inline = firstSoundInText(f.value);
+      if (inline) {
+        audio = inline;
+        break;
+      }
+    }
+  }
+
   const hanViet = getLabel("Nghĩa hán việt") || getLabel("HÁN VIỆT");
-  const soundInHanViet = hanViet.match(/\[sound:([^\]]+)\]/);
-  if (!audio && soundInHanViet) audio = soundInHanViet[1];
+  if (!audio) {
+    const soundInHanViet = firstSoundInText(hanViet);
+    if (soundInHanViet) audio = soundInHanViet;
+  }
 
   return {
     section,

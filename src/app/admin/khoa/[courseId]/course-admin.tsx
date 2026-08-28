@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { importFieldNamesForSection } from "@/lib/section-presets";
+import { toSoundTag } from "@/lib/anki-sound";
 import { sectionLabel, type StudySectionId } from "@/lib/sections";
 import { type ImportPreview } from "@/lib/import-cards";
 import { resolveFieldDefs } from "@/lib/anki-note-fields";
@@ -23,14 +24,14 @@ type Course = {
   backTemplate: string | null;
   cardCss: string | null;
   fieldDefs: string | null;
-  cards: { id: string; section: string; front: string; back: string; pinyin: string | null; audioUrl: string | null }[];
 };
 
 export function CourseAdmin({ courseId }: { courseId: string }) {
   const [tab, setTab] = useState<Tab>("browse");
   const [course, setCourse] = useState<Course | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [importMode, setImportMode] = useState<"append" | "replace">("append");
-  const [audioList, setAudioList] = useState<{ name: string; url: string }[]>([]);
+  const [audioList, setAudioList] = useState<{ name: string; url: string; soundTag?: string }[]>([]);
   const [imageList, setImageList] = useState<{ name: string; url: string }[]>([]);
   const [msg, setMsg] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -40,18 +41,34 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
 
   const [browseRefresh, setBrowseRefresh] = useState(0);
 
-  const reload = useCallback(() => {
-    fetch(`/api/admin/courses/${courseId}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then(setCourse);
-    fetch("/api/admin/audio", { cache: "no-store" }).then((r) => r.json()).then(setAudioList);
-    fetch("/api/admin/images", { cache: "no-store" }).then((r) => r.json()).then(setImageList);
+  const reload = useCallback(async () => {
+    setLoadError(null);
+    const res = await fetch(`/api/admin/courses/${courseId}`, { cache: "no-store" });
+    if (!res.ok) {
+      setCourse(null);
+      setLoadError(
+        res.status === 404
+          ? "Bộ thẻ không tồn tại (có thể đã xóa hoặc ID sai)."
+          : "Không tải được bộ thẻ — thử refresh.",
+      );
+      return;
+    }
+    setCourse((await res.json()) as Course);
     setBrowseRefresh((n) => n + 1);
   }, [courseId]);
 
+  const loadMedia = useCallback(() => {
+    fetch("/api/admin/audio", { cache: "no-store" }).then((r) => r.json()).then(setAudioList);
+    fetch("/api/admin/images", { cache: "no-store" }).then((r) => r.json()).then(setImageList);
+  }, []);
+
   useEffect(() => {
-    reload();
+    void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (tab === "media") loadMedia();
+  }, [tab, loadMedia]);
 
   const runPreview = async (file: File) => {
     setPreviewLoading(true);
@@ -113,8 +130,8 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
     const res = await fetch("/api/admin/audio", { method: "POST", body: fd });
     const data = await res.json();
     if (res.ok) {
-      setMsg(`Đã upload: ${data.fileName}`);
-      reload();
+      setMsg(`Đã upload — dán vào trường: ${data.soundTag ?? toSoundTag(data.fileName ?? file.name)}`);
+      loadMedia();
     } else setMsg(data.error ?? "Upload lỗi");
   };
 
@@ -125,9 +142,18 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
     const data = await res.json();
     if (res.ok) {
       setMsg(`Đã upload: ${data.fileName}`);
-      reload();
+      loadMedia();
     } else setMsg(data.error ?? "Upload lỗi");
   };
+
+  if (loadError) {
+    return (
+      <div style={{ padding: 20, fontFamily: "Segoe UI", background: "#ece9e8", minHeight: "100vh" }}>
+        <p style={{ color: "#b91c1c", marginBottom: 12 }}>{loadError}</p>
+        <Link href="/admin" style={{ color: "#2563eb" }}>← Về bảng quản trị</Link>
+      </div>
+    );
+  }
 
   if (!course) {
     return (
@@ -196,7 +222,9 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
               <strong>{importFields.join(" · ")}</strong>
             </p>
             <p className="text-sm text-stone-500">
-              Âm thanh kiểu Anki: upload MP3/WAV ở tab <strong>Media</strong>, cột <strong>Âm thanh</strong> ghi tên file (vd: <code className="text-xs">nihao.mp3</code>) hoặc Browse gõ <code className="text-xs">[sound:nihao.mp3]</code>.
+              Âm thanh Anki/HyperTTS: upload file MP3 → copy tag{" "}
+              <code className="text-xs">[sound:ten-file.mp3]</code> dán vào trường <strong>ÂM THANH</strong>,{" "}
+              <strong>HÁN VIỆT</strong>, <strong>VÍ DỤ</strong>… (cạnh chữ cũng được).
             </p>
             <div className="flex gap-4 text-sm">
               <label><input type="radio" checked={importMode === "append"} onChange={() => setImportMode("append")} /> Thêm</label>
@@ -317,7 +345,33 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
                 variant="secondary"
                 onFile={(f) => void onAudioUpload(f)}
               />
-              <ul className="text-xs mt-2">{audioList.map((a) => <li key={a.name}>{a.name}</li>)}</ul>
+              <ul className="text-xs mt-2 space-y-2">
+                {audioList.map((a) => (
+                  <li key={a.name} className="font-mono break-all">
+                    <button
+                      type="button"
+                      className="text-emerald-700 hover:underline mr-2"
+                      title="Copy tag Anki"
+                      onClick={() => {
+                        const tag = a.soundTag ?? toSoundTag(a.name);
+                        void navigator.clipboard.writeText(tag);
+                        setMsg(`Đã copy: ${tag}`);
+                      }}
+                    >
+                      📋
+                    </button>
+                    <button
+                      type="button"
+                      className="text-emerald-700 hover:underline mr-2"
+                      title="Nghe thử"
+                      onClick={() => void new Audio(a.url).play()}
+                    >
+                      🔊
+                    </button>
+                    {a.soundTag ?? toSoundTag(a.name)}
+                  </li>
+                ))}
+              </ul>
             </div>
           </section>
         )}

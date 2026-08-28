@@ -1,4 +1,5 @@
 import { requireAdmin } from "@/lib/api-auth";
+import { toSoundTag } from "@/lib/anki-sound";
 import { getAudioUploadDir, uploadUrl } from "@/lib/paths";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
   await writeFile(path.join(dir, safeName), bytes);
 
   const url = uploadUrl(`audio/${encodeURIComponent(safeName)}`);
-  return NextResponse.json({ url, fileName: safeName });
+  return NextResponse.json({ url, fileName: safeName, soundTag: toSoundTag(safeName) });
 }
 
 export async function GET() {
@@ -39,6 +40,10 @@ export async function GET() {
   await mkdir(dir, { recursive: true });
   const files = await readdir(dir);
   return NextResponse.json(
-    files.map((f) => ({ name: f, url: uploadUrl(`audio/${encodeURIComponent(f)}`) })),
+    files.map((f) => ({
+      name: f,
+      url: uploadUrl(`audio/${encodeURIComponent(f)}`),
+      soundTag: toSoundTag(f),
+    })),
   );
 }

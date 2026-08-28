@@ -23,6 +23,7 @@ import {
   clipboardImageFile,
   fieldUsesImageEditor,
   uploadImageFile,
+  usesRichEditorField,
 } from "@/lib/paste-image";
 import "./anki-browse.css";
 
@@ -175,8 +176,9 @@ export function AnkiBrowse({
     selection?: { start: number; end: number },
   ) => {
     const asImageField = fieldUsesImageEditor(field.label, field.value, field.isImage);
-    if (!asImageField && !field.multiline) {
-      onMsg("Click vào trường ẢNH rồi paste (thêm trường ẢNH trong Fields nếu chưa có)");
+    const asRich = usesRichEditorField(field.label, field.htmlEditor, field.multiline);
+    if (!asImageField && !asRich && !field.multiline) {
+      onMsg("Click vào trường ẢNH hoặc GHI CHÚ rồi paste");
       return;
     }
     setImageUploading(true);
@@ -916,15 +918,6 @@ export function AnkiBrowse({
   );
 }
 
-const RICH_FIELD_LABELS = new Set([
-  "GHI CHÚ",
-  "VÍ DỤ",
-  "GIẢI THÍCH",
-  "Đặt câu",
-  "ĐẶT CÂU",
-  "Nghĩa tiếng Việt",
-]);
-
 function usesRichEditor(f: NoteFieldRow): boolean {
-  return !!f.htmlEditor || (f.multiline && RICH_FIELD_LABELS.has(f.label));
+  return usesRichEditorField(f.label, f.htmlEditor, f.multiline);
 }

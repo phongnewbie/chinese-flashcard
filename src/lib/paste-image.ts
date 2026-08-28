@@ -43,7 +43,34 @@ export function isImageFieldLabel(label: string): boolean {
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
     .replace(/\s+/g, " ");
+  if (RICH_TEXT_FIELD_LABELS.has(label.trim()) || RICH_TEXT_FIELD_LABELS.has(label.trim().toUpperCase())) {
+    return false;
+  }
+  if (norm.includes("ghi chu") || norm.includes("vi du") || norm.includes("giai thich")) {
+    return false;
+  }
   return norm === "anh" || norm === "image" || norm === "hinh anh" || norm === "photo";
+}
+
+/** Trường ghi chú / ví dụ — luôn dùng rich editor, không dùng image-only */
+export const RICH_TEXT_FIELD_LABELS = new Set([
+  "GHI CHÚ",
+  "VÍ DỤ",
+  "GIẢI THÍCH",
+  "Đặt câu",
+  "ĐẶT CÂU",
+  "Nghĩa tiếng Việt",
+  "NGHĨA",
+  "ÂM THANH",
+  "PINYIN",
+  "Pinyin",
+]);
+
+export function usesRichEditorField(label: string, htmlEditor?: boolean, multiline?: boolean): boolean {
+  if (htmlEditor) return true;
+  const trimmed = label.trim();
+  if (RICH_TEXT_FIELD_LABELS.has(trimmed)) return true;
+  return !!(multiline && RICH_TEXT_FIELD_LABELS.has(trimmed.toUpperCase()));
 }
 
 export function isImageOnlyFieldValue(value: string): boolean {
@@ -53,8 +80,9 @@ export function isImageOnlyFieldValue(value: string): boolean {
   return textOnly === "";
 }
 
-/** Chỉ trường ẺNH riêng — không dùng cho GHI CHÚ / VÍ DỤ */
+/** Chỉ trường ẢNH riêng — không dùng cho GHI CHÚ / VÍ DỤ */
 export function fieldUsesImageEditor(label: string, _value: string, isImage?: boolean): boolean {
+  if (usesRichEditorField(label)) return false;
   return !!isImage || isImageFieldLabel(label);
 }
 

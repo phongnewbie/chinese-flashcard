@@ -15,9 +15,6 @@ export async function GET(_req: Request, context: RouteContext) {
   const { courseId } = await context.params;
   let course = await prisma.course.findUnique({
     where: { id: courseId },
-    include: {
-      cards: { orderBy: [{ sortOrder: "asc" }, { front: "asc" }] },
-    },
   });
   if (!course) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -32,9 +29,6 @@ export async function GET(_req: Request, context: RouteContext) {
         backTemplate: course.backTemplate?.trim() ? undefined : defaults.backTemplate,
         cardCss: course.cardCss?.trim() ? undefined : defaults.cardCss,
         cardTypes: course.cardTypes?.trim() ? undefined : defaults.cardTypes,
-      },
-      include: {
-        cards: { orderBy: [{ sortOrder: "asc" }, { front: "asc" }] },
       },
     });
   }
