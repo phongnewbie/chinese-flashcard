@@ -36,6 +36,27 @@ export function resolveImageSrc(raw: string): string {
   return `/uploads/images/${encodeURIComponent(name)}`;
 }
 
+export function isImageFieldLabel(label: string): boolean {
+  const norm = label
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/\s+/g, " ");
+  return norm === "anh" || norm === "image" || norm === "hinh anh" || norm === "photo";
+}
+
+export function isImageOnlyFieldValue(value: string): boolean {
+  const t = value.trim();
+  if (!t || !extractImageSrcFromField(t)) return false;
+  const textOnly = t.replace(/<[^>]*>/g, "").replace(/\s/g, "");
+  return textOnly === "";
+}
+
+export function fieldUsesImageEditor(label: string, value: string, isImage?: boolean): boolean {
+  return !!isImage || isImageFieldLabel(label) || isImageOnlyFieldValue(value);
+}
+
 export function extractImageSrcFromField(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -80,7 +101,7 @@ export function applyImageToFieldValue(
     return imageFieldHtml(url, "center");
   }
   if (opts.multiline) {
-    const tag = imageFieldHtml(url, "center");
+    const tag = `<img src="${url.replace(/"/g, "")}" alt="" class="field-img" />`;
     const start = selection?.start ?? current.length;
     const end = selection?.end ?? current.length;
     const prefix = current.slice(0, start);

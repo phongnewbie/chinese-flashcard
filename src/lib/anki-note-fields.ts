@@ -8,6 +8,7 @@ import {
 } from "@/lib/field-defs";
 import { getSectionPreset } from "@/lib/section-presets";
 import { resolveAudioUrl } from "@/lib/import-cards";
+import { isImageFieldLabel } from "@/lib/paste-image";
 import type { StudySectionId } from "@/lib/sections";
 
 export { DEFAULT_NOTE_TYPE_FIELDS };
@@ -35,7 +36,6 @@ const MULTILINE_LABELS = new Set([
   "CÁCH NHỚ",
   "CÁCH VIẾT",
 ]);
-const IMAGE_LABELS = new Set(["ẢNH", "Ảnh", "Hình ảnh", "Image", "IMAGE"]);
 
 /** Danh sách field của note type — dùng default nếu chưa lưu */
 export function resolveFieldDefs(raw: string | null | undefined): string[] {
@@ -196,8 +196,8 @@ function fieldRowForLabel(
     key: `extra:${label}`,
     label,
     value: lookupExtra(extras, label),
-    multiline: MULTILINE_LABELS.has(label),
-    isImage: IMAGE_LABELS.has(label),
+    multiline: MULTILINE_LABELS.has(label) && !isImageFieldLabel(label),
+    isImage: isImageFieldLabel(label),
   };
 }
 

@@ -20,6 +20,7 @@ import { AnkiImageField, fieldImagePreview } from "./anki-image-field";
 import {
   applyImageToFieldValue,
   clipboardImageFile,
+  fieldUsesImageEditor,
   uploadImageFile,
 } from "@/lib/paste-image";
 import "./anki-browse.css";
@@ -172,11 +173,16 @@ export function AnkiBrowse({
     field: NoteFieldRow,
     selection?: { start: number; end: number },
   ) => {
+    const asImageField = fieldUsesImageEditor(field.label, field.value, field.isImage);
+    if (!asImageField && !field.multiline) {
+      onMsg("Click vào trường ẢNH rồi paste (thêm trường ẢNH trong Fields nếu chưa có)");
+      return;
+    }
     setImageUploading(true);
     try {
       const uploaded = await uploadImageFile(file);
       const next = applyImageToFieldValue(field.value, uploaded, {
-        isImageField: !!field.isImage,
+        isImageField: asImageField,
         multiline: field.multiline,
       }, selection);
       updateField(field.key, next);
@@ -796,7 +802,7 @@ export function AnkiBrowse({
                         <span className="anki-field-code">&lt;/&gt;</span>
                       </div>
                       <div className="anki-field-body">
-                        {f.isImage ? (
+                        {fieldUsesImageEditor(f.label, f.value, f.isImage) ? (
                           <AnkiImageField
                             value={f.value}
                             uploading={imageUploading && focusedFieldRef.current?.key === f.key}
@@ -842,7 +848,7 @@ export function AnkiBrowse({
                             }}
                           />
                         )}
-                        {!f.isImage && /<img\b/i.test(f.value) && fieldImagePreview(f.value) && (
+                        {!fieldUsesImageEditor(f.label, f.value, f.isImage) && /<img\b/i.test(f.value) && fieldImagePreview(f.value) && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={fieldImagePreview(f.value)!} alt="" className="img-inline" />
                         )}
