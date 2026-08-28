@@ -17,6 +17,7 @@ import { requiredFieldLabels, getSectionPreset } from "@/lib/section-presets";
 import { STUDY_SECTIONS, sectionLabel, type StudySectionId } from "@/lib/sections";
 import { AnkiFieldsDialog } from "./anki-fields-dialog";
 import { AnkiImageField, fieldImagePreview } from "./anki-image-field";
+import { AnkiRichField } from "./anki-rich-field";
 import {
   applyImageToFieldValue,
   clipboardImageFile,
@@ -810,6 +811,20 @@ export function AnkiBrowse({
                             onFocus={() => { focusedFieldRef.current = f; }}
                             onPaste={(e) => onFieldPaste(e, f)}
                           />
+                        ) : usesRichEditor(f) ? (
+                          <AnkiRichField
+                            value={f.value}
+                            uploading={imageUploading && focusedFieldRef.current?.key === f.key}
+                            onChange={(v) => updateField(f.key, v)}
+                            onFocus={() => { focusedFieldRef.current = f; }}
+                            onUploadStart={() => setImageUploading(true)}
+                            onUploadEnd={() => setImageUploading(false)}
+                            onError={(msg) => onMsg(msg)}
+                            placeholder="Gõ ghi chú — copy ảnh rồi Ctrl+V"
+                            minHeight={
+                              f.label === "VÍ DỤ" || f.label === "Đặt câu" || f.label === "ĐẶT CÂU" ? 120 : 88
+                            }
+                          />
                         ) : f.multiline ? (
                           <textarea
                             className={
@@ -899,4 +914,17 @@ export function AnkiBrowse({
     />
     </>
   );
+}
+
+const RICH_FIELD_LABELS = new Set([
+  "GHI CHÚ",
+  "VÍ DỤ",
+  "GIẢI THÍCH",
+  "Đặt câu",
+  "ĐẶT CÂU",
+  "Nghĩa tiếng Việt",
+]);
+
+function usesRichEditor(f: NoteFieldRow): boolean {
+  return !!f.htmlEditor || (f.multiline && RICH_FIELD_LABELS.has(f.label));
 }

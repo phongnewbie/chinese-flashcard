@@ -78,6 +78,7 @@ export type NoteFieldRow = {
   value: string;
   multiline: boolean;
   isImage?: boolean;
+  htmlEditor?: boolean;
   fontFamily?: string;
   fontSize?: number;
   placeholder?: string;
@@ -146,6 +147,7 @@ export function buildNoteFieldRows(
       ...fieldRowForLabel(card, extras, label),
       fontFamily: style.fontFamily,
       fontSize: style.fontSize,
+      htmlEditor: style.htmlEditor,
       placeholder: style.description || undefined,
       rtl: style.rtl,
     });
@@ -159,6 +161,7 @@ export function buildNoteFieldRows(
       ...fieldRowForLabel(card, extras, label),
       fontFamily: style.fontFamily,
       fontSize: style.fontSize,
+      htmlEditor: style.htmlEditor,
       placeholder: style.description || undefined,
       rtl: style.rtl,
     });

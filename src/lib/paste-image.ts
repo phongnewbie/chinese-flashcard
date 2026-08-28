@@ -53,8 +53,9 @@ export function isImageOnlyFieldValue(value: string): boolean {
   return textOnly === "";
 }
 
-export function fieldUsesImageEditor(label: string, value: string, isImage?: boolean): boolean {
-  return !!isImage || isImageFieldLabel(label) || isImageOnlyFieldValue(value);
+/** Chỉ trường ẺNH riêng — không dùng cho GHI CHÚ / VÍ DỤ */
+export function fieldUsesImageEditor(label: string, _value: string, isImage?: boolean): boolean {
+  return !!isImage || isImageFieldLabel(label);
 }
 
 export function extractImageSrcFromField(value: string): string | null {

@@ -788,6 +788,42 @@
   border-radius: 4px;
 }
 
+.anki-rich-field-wrap {
+  position: relative;
+}
+
+.anki-rich-field {
+  min-height: 88px;
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid #ccc;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: auto;
+  outline: none;
+}
+
+.anki-rich-field:focus {
+  border-color: #4a90d9;
+  outline: 1px solid #4a90d9;
+}
+
+.anki-rich-field:empty::before {
+  content: attr(data-placeholder);
+  color: #999;
+  pointer-events: none;
+}
+
+.anki-rich-field img.field-img {
+  max-width: min(280px, 100%);
+  max-height: 220px;
+  height: auto;
+  display: inline-block;
+  margin: 4px 0;
+  border: 1px solid #ddd;
+  vertical-align: middle;
+}
+
 .anki-tags-bar {
   display: flex;
   align-items: center;

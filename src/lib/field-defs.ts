@@ -125,12 +125,13 @@ export function resolveFieldNames(raw: string | null | undefined): string[] {
 export function getFieldStyle(
   entries: FieldDefEntry[],
   label: string,
-): { fontFamily: string; fontSize: number; description: string; rtl: boolean } {
+): { fontFamily: string; fontSize: number; description: string; rtl: boolean; htmlEditor: boolean } {
   const e = entries.find((x) => x.name === label);
   return {
     fontFamily: e?.fontFamily ?? DEFAULT_FIELD_SETTINGS.fontFamily!,
     fontSize: e?.fontSize ?? DEFAULT_FIELD_SETTINGS.fontSize!,
     description: e?.description ?? "",
     rtl: e?.rtl ?? false,
+    htmlEditor: e?.htmlEditor ?? false,
   };
 }

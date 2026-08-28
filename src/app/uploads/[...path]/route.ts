@@ -1,4 +1,4 @@
-import { getAudioUploadDir, getImageUploadDir } from "@/lib/paths";
+import { getAudioUploadDir, getImageUploadDir, getUploadRoot } from "@/lib/paths";
 import { readFile } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
@@ -19,31 +19,48 @@ const MIME: Record<string, string> = {
 
 type RouteContext = { params: Promise<{ path: string[] }> };
 
+function resolveUploadFile(segments: string[]): string | null {
+  if (!segments.length || segments.some((s) => s.includes(".."))) return null;
+
+  const [kind, ...rest] = segments;
+  if (kind === "images" && rest.length > 0) {
+    return path.join(getImageUploadDir(), ...rest.map(decodeURIComponent));
+  }
+  if (kind === "audio" && rest.length > 0) {
+    return path.join(getAudioUploadDir(), ...rest.map(decodeURIComponent));
+  }
+
+  // Legacy: /uploads/images/foo.png tried against upload root directly
+  return path.join(getUploadRoot(), ...segments.map(decodeURIComponent));
+}
+
 export async function GET(_req: Request, context: RouteContext) {
   const segments = (await context.params).path;
-  if (!segments?.length || segments.some((s) => s.includes(".."))) {
+  const filePath = resolveUploadFile(segments);
+  if (!filePath) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const roots = [getImageUploadDir(), getAudioUploadDir(), path.join(process.cwd(), "public", "uploads")];
-
-  for (const root of roots) {
-    const filePath = path.join(/* turbopackIgnore: true */ root, ...segments);
-    if (!filePath.startsWith(root)) continue;
-    try {
-      const data = await readFile(filePath);
-      const ext = path.extname(filePath).toLowerCase();
-      const type = MIME[ext] ?? "application/octet-stream";
-      return new NextResponse(data, {
-        headers: {
-          "Content-Type": type,
-          "Cache-Control": "public, max-age=86400",
-        },
-      });
-    } catch {
-      /* thử thư mục khác */
-    }
+  const allowedRoots = [getUploadRoot(), getImageUploadDir(), getAudioUploadDir()];
+  const allowed = allowedRoots.some((root) => {
+    const normalized = path.normalize(filePath);
+    return normalized === root || normalized.startsWith(root + path.sep);
+  });
+  if (!allowed) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ error: "Not found" }, { status: 404 });
+  try {
+    const data = await readFile(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const type = MIME[ext] ?? "application/octet-stream";
+    return new NextResponse(data, {
+      headers: {
+        "Content-Type": type,
+        "Cache-Control": "public, max-age=86400",
+      },
+    });
+  } catch {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 }

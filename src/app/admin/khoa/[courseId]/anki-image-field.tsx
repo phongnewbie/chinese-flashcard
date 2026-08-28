@@ -49,6 +49,9 @@ export function AnkiImageField({ value, uploading, onChange, onFocus, onPaste }:
                 title="ấn để mở rộng"
                 onClick={() => setExpanded(true)}
                 draggable={false}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).alt = "Không tải được ảnh — thử paste lại";
+                }}
               />
             </div>
             <div className="anki-image-toolbar">
