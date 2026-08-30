@@ -1,10 +1,15 @@
 "use client";
 
 import { useDeviceRegistration } from "@/lib/device-client";
-import { DeviceBlocked } from "@/components/access-ui";
+import { DeviceBlocked, useAccess } from "@/components/access-ui";
 
 export function DeviceGate({ children }: { children: React.ReactNode }) {
-  const status = useDeviceRegistration(true);
+  const { access, loading: accessLoading } = useAccess();
+  const status = useDeviceRegistration(!accessLoading && !access?.isAdmin);
+
+  if (!accessLoading && access?.isAdmin) {
+    return <>{children}</>;
+  }
 
   if (status === "blocked") {
     return (

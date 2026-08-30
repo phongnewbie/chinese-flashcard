@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { importFieldNamesForSection } from "@/lib/section-presets";
-import { toSoundTag } from "@/lib/anki-sound";
 import { sectionLabel, type StudySectionId } from "@/lib/sections";
 import { type ImportPreview } from "@/lib/import-cards";
 import { resolveFieldDefs } from "@/lib/anki-note-fields";
@@ -10,10 +9,11 @@ import { PersistenceBanner } from "@/components/persistence-banner";
 import { ImportFileButton } from "@/app/admin/admin-ui";
 import { TemplateEditor } from "./template-editor";
 import { FieldDefsEditor } from "./field-editor";
+import { CardTypesEditor } from "./card-types-editor";
 import { AnkiBrowse } from "./anki-browse";
 import Link from "next/link";
 
-type Tab = "browse" | "import" | "media" | "settings";
+type Tab = "browse" | "import" | "settings";
 
 type Course = {
   id: string;
@@ -24,6 +24,7 @@ type Course = {
   backTemplate: string | null;
   cardCss: string | null;
   fieldDefs: string | null;
+  cardTypes: string | null;
 };
 
 export function CourseAdmin({ courseId }: { courseId: string }) {
@@ -31,8 +32,6 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
   const [course, setCourse] = useState<Course | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [importMode, setImportMode] = useState<"append" | "replace">("append");
-  const [audioList, setAudioList] = useState<{ name: string; url: string; soundTag?: string }[]>([]);
-  const [imageList, setImageList] = useState<{ name: string; url: string }[]>([]);
   const [msg, setMsg] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
@@ -57,18 +56,9 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
     setBrowseRefresh((n) => n + 1);
   }, [courseId]);
 
-  const loadMedia = useCallback(() => {
-    fetch("/api/admin/audio", { cache: "no-store" }).then((r) => r.json()).then(setAudioList);
-    fetch("/api/admin/images", { cache: "no-store" }).then((r) => r.json()).then(setImageList);
-  }, []);
-
   useEffect(() => {
     void reload();
   }, [reload]);
-
-  useEffect(() => {
-    if (tab === "media") loadMedia();
-  }, [tab, loadMedia]);
 
   const runPreview = async (file: File) => {
     setPreviewLoading(true);
@@ -124,28 +114,6 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
     } else setMsg(data.error ?? "Import lỗi");
   };
 
-  const onAudioUpload = async (file: File) => {
-    const fd = new FormData();
-    fd.set("file", file);
-    const res = await fetch("/api/admin/audio", { method: "POST", body: fd });
-    const data = await res.json();
-    if (res.ok) {
-      setMsg(`Đã upload — dán vào trường: ${data.soundTag ?? toSoundTag(data.fileName ?? file.name)}`);
-      loadMedia();
-    } else setMsg(data.error ?? "Upload lỗi");
-  };
-
-  const onImageUpload = async (file: File) => {
-    const fd = new FormData();
-    fd.set("file", file);
-    const res = await fetch("/api/admin/images", { method: "POST", body: fd });
-    const data = await res.json();
-    if (res.ok) {
-      setMsg(`Đã upload: ${data.fileName}`);
-      loadMedia();
-    } else setMsg(data.error ?? "Upload lỗi");
-  };
-
   if (loadError) {
     return (
       <div style={{ padding: 20, fontFamily: "Segoe UI", background: "#ece9e8", minHeight: "100vh" }}>
@@ -175,8 +143,7 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
         <div className="anki-subnav" style={{ marginBottom: 6 }}>
           <button type="button" className="on">Browse / Nhập liệu</button>
           <button type="button" onClick={() => setTab("import")}>Import Excel</button>
-          <button type="button" onClick={() => setTab("media")}>Media</button>
-          <button type="button" onClick={() => setTab("settings")}>Mẫu hiển thị thẻ</button>
+          <button type="button" onClick={() => setTab("settings")}>Mẫu & kiểu thẻ</button>
           <Link href="/admin" style={{ marginLeft: "auto", fontSize: 11, alignSelf: "center" }}>
             ← Về bảng quản trị
           </Link>
@@ -191,6 +158,7 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
           onMsg={setMsg}
           onAddNoteRef={addNoteRef}
           onOpenSettings={() => setTab("settings")}
+          onOpenCardTypes={() => setTab("settings")}
           onFieldDefsSaved={reload}
         />
       </div>
@@ -205,8 +173,7 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
       <div className="anki-subnav">
         <button type="button" onClick={() => setTab("browse")}>Browse / Nhập liệu</button>
         <button type="button" className={tab === "import" ? "on" : ""} onClick={() => setTab("import")}>Import Excel</button>
-        <button type="button" className={tab === "media" ? "on" : ""} onClick={() => setTab("media")}>Media</button>
-        <button type="button" className={tab === "settings" ? "on" : ""} onClick={() => setTab("settings")}>Mẫu hiển thị thẻ</button>
+        <button type="button" className={tab === "settings" ? "on" : ""} onClick={() => setTab("settings")}>Mẫu & kiểu thẻ</button>
         <Link href="/admin" style={{ marginLeft: "auto", fontSize: 11, alignSelf: "center" }}>
           ← Về bảng quản trị
         </Link>
@@ -222,9 +189,12 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
               <strong>{importFields.join(" · ")}</strong>
             </p>
             <p className="text-sm text-stone-500">
-              Âm thanh Anki/HyperTTS: upload file MP3 → copy tag{" "}
-              <code className="text-xs">[sound:ten-file.mp3]</code> dán vào trường <strong>ÂM THANH</strong>,{" "}
-              <strong>HÁN VIỆT</strong>, <strong>VÍ DỤ</strong>… (cạnh chữ cũng được).
+              Âm thanh giống Anki — dán vào trường <strong>ÂM THANH</strong> (hoặc bất kỳ trường nào):
+              {" "}
+              <code className="text-xs">https://…/file.mp3</code>,{" "}
+              <code className="text-xs">[sound:ten-file.mp3]</code>,{" "}
+              <code className="text-xs">[sound:https://…/file.mp3]</code>
+              {" "}hoặc upload MP3 rồi dùng tên file.
             </p>
             <div className="flex gap-4 text-sm">
               <label><input type="radio" checked={importMode === "append"} onChange={() => setImportMode("append")} /> Thêm</label>
@@ -325,56 +295,6 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
             </a>
           </section>
         )}
-        {tab === "media" && (
-          <section className="space-y-6">
-            <div>
-              <h2 className="font-semibold">Hình ảnh</h2>
-              <ImportFileButton
-                label="Upload ảnh"
-                accept="image/*"
-                variant="secondary"
-                onFile={(f) => void onImageUpload(f)}
-              />
-              <ul className="text-xs mt-2">{imageList.map((a) => <li key={a.name}>{a.name}</li>)}</ul>
-            </div>
-            <div>
-              <h2 className="font-semibold">Âm thanh</h2>
-              <ImportFileButton
-                label="Upload audio"
-                accept="audio/*"
-                variant="secondary"
-                onFile={(f) => void onAudioUpload(f)}
-              />
-              <ul className="text-xs mt-2 space-y-2">
-                {audioList.map((a) => (
-                  <li key={a.name} className="font-mono break-all">
-                    <button
-                      type="button"
-                      className="text-emerald-700 hover:underline mr-2"
-                      title="Copy tag Anki"
-                      onClick={() => {
-                        const tag = a.soundTag ?? toSoundTag(a.name);
-                        void navigator.clipboard.writeText(tag);
-                        setMsg(`Đã copy: ${tag}`);
-                      }}
-                    >
-                      📋
-                    </button>
-                    <button
-                      type="button"
-                      className="text-emerald-700 hover:underline mr-2"
-                      title="Nghe thử"
-                      onClick={() => void new Audio(a.url).play()}
-                    >
-                      🔊
-                    </button>
-                    {a.soundTag ?? toSoundTag(a.name)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
-        )}
         {tab === "settings" && (
           <div className="space-y-6">
             <p className="text-sm text-stone-600 bg-amber-50 border border-amber-100 rounded-lg px-4 py-3">
@@ -382,6 +302,17 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
               style thẻ cho bộ <strong>{course.title}</strong>.
             </p>
             <FieldDefsEditor courseId={courseId} initial={resolveFieldDefs(course.fieldDefs)} onSaved={reload} />
+            <CardTypesEditor
+              courseId={courseId}
+              primarySection={course.primarySection ?? "vocabulary"}
+              cardTypesRaw={course.cardTypes}
+              baseTemplates={{
+                frontTemplate: course.frontTemplate,
+                backTemplate: course.backTemplate,
+                cardCss: course.cardCss,
+              }}
+              onSaved={reload}
+            />
             <TemplateEditor
               key={`tpl-${course.id}-${course.frontTemplate?.length ?? 0}-${course.backTemplate?.length ?? 0}`}
               courseId={courseId}

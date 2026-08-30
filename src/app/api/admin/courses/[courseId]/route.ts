@@ -49,6 +49,7 @@ export async function PATCH(req: Request, context: RouteContext) {
     backTemplate?: string | null;
     cardCss?: string | null;
     fieldDefs?: (string | FieldDefEntry)[] | null;
+    cardTypes?: string | null;
   };
 
   let fieldDefsStored: string | null | undefined;
@@ -73,6 +74,7 @@ export async function PATCH(req: Request, context: RouteContext) {
       ...(body.frontTemplate !== undefined ? { frontTemplate: body.frontTemplate } : {}),
       ...(body.backTemplate !== undefined ? { backTemplate: body.backTemplate } : {}),
       ...(body.cardCss !== undefined ? { cardCss: body.cardCss } : {}),
+      ...(body.cardTypes !== undefined ? { cardTypes: body.cardTypes } : {}),
       ...(fieldDefsStored !== undefined ? { fieldDefs: fieldDefsStored } : {}),
     },
   });

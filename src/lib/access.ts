@@ -53,11 +53,11 @@ export async function getAccessStatus(userId: string, email?: string | null): Pr
     };
   }
 
-  if (user.canStudy || user.isPremium) {
+  if (user.canStudy || user.isPremium || user.canEditContent) {
     return {
       allowed: true,
       isAdmin: false,
-      isPremium: true,
+      isPremium: user.isPremium || user.canStudy,
       canStudy: true,
       trialMinutes: settings.trialMinutes,
       trialStartedAt: user.trialStartedAt?.toISOString() ?? null,

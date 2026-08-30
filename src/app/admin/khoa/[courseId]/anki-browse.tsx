@@ -35,6 +35,7 @@ type Props = {
   onMsg: (msg: string) => void;
   onAddNoteRef?: React.MutableRefObject<(() => void) | null>;
   onOpenSettings?: () => void;
+  onOpenCardTypes?: () => void;
   onFieldDefsSaved?: () => void;
   refreshToken?: number;
 };
@@ -47,6 +48,7 @@ export function AnkiBrowse({
   onMsg,
   onAddNoteRef,
   onOpenSettings,
+  onOpenCardTypes,
   onFieldDefsSaved,
   refreshToken = 0,
 }: Props) {
@@ -56,11 +58,16 @@ export function AnkiBrowse({
   const [fieldsDialogOpen, setFieldsDialogOpen] = useState(false);
   const [sectionFilter, setSectionFilter] = useState<string>(primarySection);
   const [subdecks, setSubdecks] = useState<string[]>([]);
+  const [subdecksBySection, setSubdecksBySection] = useState<Record<string, string[]>>({});
+  const [bySubdeck, setBySubdeck] = useState<Record<string, number>>({});
   const [cardState, setCardState] = useState("");
   const [search, setSearch] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sidebarFilter, setSidebarFilter] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ root: true });
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(STUDY_SECTIONS.map((s) => [s.id, true])),
+  );
   const [cards, setCards] = useState<FlashcardRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [bySection, setBySection] = useState<Record<string, number>>({});
@@ -111,6 +118,8 @@ export function AnkiBrowse({
     setTotal(data.total);
     setBySection(data.bySection ?? {});
     setSubdecks(Array.isArray(data.subdecks) ? data.subdecks : []);
+    setSubdecksBySection(data.subdecksBySection ?? {});
+    setBySubdeck(data.bySubdeck ?? {});
   }, [courseId, sectionFilter, search, cardState]);
 
   useEffect(() => {
@@ -400,8 +409,56 @@ export function AnkiBrowse({
     setCheckedIds(new Set());
   };
 
+  const totalInCourse = useMemo(
+    () => Object.values(bySection).reduce((sum, n) => sum + n, 0),
+    [bySection],
+  );
+
+  const sidebarFilterLower = sidebarFilter.trim().toLowerCase();
+
+  const sectionMatchesFilter = useCallback(
+    (sectionId: StudySectionId) => {
+      if (!sidebarFilterLower) return true;
+      const s = STUDY_SECTIONS.find((x) => x.id === sectionId)!;
+      const preset = getSectionPreset(sectionId);
+      if (preset.noteTypeLabel.toLowerCase().includes(sidebarFilterLower)) return true;
+      if (s.label.toLowerCase().includes(sidebarFilterLower)) return true;
+      if (subdecksBySection[sectionId]?.some((sub) => sub.toLowerCase().includes(sidebarFilterLower))) {
+        return true;
+      }
+      return false;
+    },
+    [sidebarFilterLower, subdecksBySection],
+  );
+
+  const subdeckMatchesFilter = useCallback(
+    (name: string) => !sidebarFilterLower || name.toLowerCase().includes(sidebarFilterLower),
+    [sidebarFilterLower],
+  );
+
+  const courseMatchesFilter =
+    !sidebarFilterLower || courseTitle.toLowerCase().includes(sidebarFilterLower) || totalInCourse > 0;
+
+  const showDeckTree =
+    !sidebarFilterLower ||
+    courseMatchesFilter ||
+    STUDY_SECTIONS.some((s) => sectionMatchesFilter(s.id));
+
+  const activeSubdeck = useMemo(() => {
+    const m = search.match(/subdeck:"([^"]+)"/i);
+    return m?.[1] ?? null;
+  }, [search]);
+
+  const pickSectionRow = (sectionId: StudySectionId) => {
+    const subs = subdecksBySection[sectionId] ?? [];
+    if (subs.length > 0) {
+      setExpandedSections((p) => ({ ...p, [sectionId]: true }));
+    }
+    pickSection(sectionId);
+  };
+
   const showAllInCourse = () => {
-    setSectionFilter(primarySection);
+    setSectionFilter("");
     setCardState("");
     setSearch("");
     setCheckedIds(new Set());
@@ -458,8 +515,14 @@ export function AnkiBrowse({
 
       <div className="anki-win-menubar">
         <Link href="/admin" className="anki-win-back">← Bảng quản trị</Link>
+        <Link href={`/hoc/${courseId}`} className="anki-win-menu-btn anki-win-study-btn">
+          ▶ Học thử
+        </Link>
         <button type="button" className="anki-win-menu-btn" onClick={() => void addNote()}>
           + Thêm thẻ
+        </button>
+        <button type="button" className="anki-win-menu-btn" onClick={() => onOpenCardTypes?.() ?? onOpenSettings?.()}>
+          Kiểu thẻ
         </button>
         <button type="button" className="anki-win-menu-btn" onClick={() => onOpenSettings?.()}>
           Mẫu thẻ
@@ -539,52 +602,75 @@ export function AnkiBrowse({
             </>
           )}
 
-          {(!sidebarFilter || /deck|hsk|vocab|ngữ|grammar|common/i.test(sidebarFilter)) && (
+          {showDeckTree && (
             <>
           <h4>Decks</h4>
           <button
             type="button"
-            className={`anki-win-deck ${sectionFilter === primarySection && !search.trim() ? "sel" : ""}`}
+            className={`anki-win-deck anki-win-deck-root ${!sectionFilter && !activeSubdeck && !search.trim() ? "sel" : ""}`}
             onClick={() => {
               setExpanded((p) => ({ ...p, root: !p.root }));
               showAllInCourse();
             }}
           >
             <span className="chev">{expanded.root ? "▾" : "▸"}</span>
-            <span className="name">{courseTitle.toUpperCase()}</span>
+            <span className="deck-icon" aria-hidden>📚</span>
+            <span className="name">{courseTitle}</span>
+            <span className="anki-deck-count-badge">{totalInCourse}</span>
           </button>
-          {expanded.root && (
-            <>
-              {STUDY_SECTIONS.filter((s) =>
-                !sidebarFilter || s.label.toLowerCase().includes(sidebarFilter.toLowerCase()),
-              ).map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={`anki-win-deck child ${sectionFilter === s.id && !search.includes("subdeck:") ? "sel" : ""}`}
-                  onClick={() => pickSection(s.id)}
-                >
-                  <span className="chev">▸</span>
-                  <span className="name">{s.label}</span>
-                  {bySection[s.id] != null && (
-                    <span className="anki-deck-count-badge">{bySection[s.id]}</span>
-                  )}
-                </button>
-              ))}
-              {subdecks.length > 0 &&
-                subdecks.map((sub) => (
+          {expanded.root &&
+            STUDY_SECTIONS.filter((s) => sectionMatchesFilter(s.id)).map((s) => {
+              const preset = getSectionPreset(s.id);
+              const subs = subdecksBySection[s.id] ?? [];
+              const sectionOpen = expandedSections[s.id] ?? false;
+              const sectionCount = bySection[s.id] ?? 0;
+              const sectionSelected = sectionFilter === s.id && !activeSubdeck;
+              const subdeckSelected = (sub: string) =>
+                sectionFilter === s.id && activeSubdeck === sub;
+
+              return (
+                <div key={s.id} className="anki-deck-branch">
                   <button
-                    key={sub}
                     type="button"
-                    className={`anki-win-deck grandchild ${search.includes(sub) ? "sel" : ""}`}
-                    onClick={() => pickSubdeck(primarySection, sub)}
+                    className={`anki-win-deck child ${sectionSelected ? "sel" : ""}`}
+                    onClick={() => pickSectionRow(s.id)}
                   >
-                    <span className="chev">▸</span>
-                    <span className="name">{sub}</span>
+                    <span
+                      className="chev chev-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (subs.length > 0) {
+                          setExpandedSections((p) => ({ ...p, [s.id]: !sectionOpen }));
+                        }
+                      }}
+                    >
+                      {subs.length > 0 ? (sectionOpen ? "▾" : "▸") : ""}
+                    </span>
+                    <span className="deck-icon" aria-hidden>📁</span>
+                    <span className="name" title={preset.noteTypeLabel}>
+                      {preset.noteTypeLabel}
+                    </span>
+                    <span className="anki-deck-count-badge">{sectionCount}</span>
                   </button>
-                ))}
-            </>
-          )}
+                  {sectionOpen &&
+                    subs.filter(subdeckMatchesFilter).map((sub) => (
+                      <button
+                        key={`${s.id}:${sub}`}
+                        type="button"
+                        className={`anki-win-deck grandchild ${subdeckSelected(sub) ? "sel" : ""}`}
+                        onClick={() => pickSubdeck(s.id, sub)}
+                      >
+                        <span className="chev" />
+                        <span className="deck-icon deck-icon-leaf" aria-hidden>🔖</span>
+                        <span className="name">{sub}</span>
+                        <span className="anki-deck-count-badge">
+                          {bySubdeck[`${s.id}:${sub}`] ?? ""}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              );
+            })}
             </>
           )}
           </div>

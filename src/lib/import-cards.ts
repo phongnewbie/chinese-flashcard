@@ -6,7 +6,12 @@ import {
   importFieldNamesForSection,
   requiredFieldLabels,
 } from "@/lib/section-presets";
-import { parseSectionValue, sectionFromSheetName, type StudySectionId } from "@/lib/sections";
+import {
+  parseSectionValue,
+  sectionFromSheetName,
+  type StudySectionId,
+} from "@/lib/sections";
+import { firstAudioInText } from "@/lib/anki-sound";
 
 export type ParsedCard = {
   section: StudySectionId;
@@ -185,6 +190,16 @@ function applyPresetFields(
 
   if (!front || !back) return null;
   if (/^\d+$/.test(front) && front.length <= 4 && !fieldNameSet.has(frontLabel)) return null;
+
+  if (!audioUrl) {
+    for (const value of Object.values(fields)) {
+      const found = firstAudioInText(value);
+      if (found) {
+        audioUrl = found;
+        break;
+      }
+    }
+  }
 
   return {
     section,
@@ -469,11 +484,35 @@ export function resolveAudioUrl(
 ): string | undefined {
   if (!value) return undefined;
   let v = value.trim();
+
+  const audioTag = v.match(/<audio[^>]+src=["']([^"']+)["']/i);
+  if (audioTag?.[1]) v = audioTag[1].trim();
+
   const sound = v.match(/\[sound:([^\]]+)\]/i);
   if (sound?.[1]) v = sound[1].trim();
-  if (/^https?:\/\//i.test(v) || v.startsWith("/")) return v;
+
+  if (/^https?:\/\//i.test(v)) return v;
+  if (v.startsWith("//")) return `https:${v}`;
+
+  // Link không có https:// nhưng rõ ràng là URL ngoài (Google Drive, CDN, TTS…)
+  if (/^[a-z0-9.-]+\.[a-z]{2,}\/\S+/i.test(v) && !v.startsWith("/")) {
+    return v.includes("://") ? v : `https://${v.replace(/^https?:\/\//i, "")}`;
+  }
+
+  if (v.startsWith("/")) return v;
+
   const name = v.replace(/^.*[\\/]/, "");
   return `${audioBaseUrl}/${encodeURIComponent(name)}`;
+}
+
+/** Lưu vào DB: giữ nguyên link ngoài, chỉ map tên file → /uploads/audio/… */
+export function storeAudioReference(
+  value: string | undefined,
+  audioBaseUrl = "/uploads/audio",
+): string | null {
+  if (!value?.trim()) return null;
+  const resolved = resolveAudioUrl(value, audioBaseUrl);
+  return resolved ?? null;
 }
 
 export const IMPORT_COLUMN_HINTS = {

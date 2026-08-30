@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import { AnkiStudy } from "@/components/anki-study";
+import { HskVocabStudy } from "@/components/hsk-vocab-study";
 import { SentenceOrderStudy } from "@/components/sentence-order-study";
 import { isAccessLocked, LockScreen, TrialBanner, useAccess } from "@/components/access-ui";
 import { lockedSectionForCourse, STUDY_SECTIONS, type StudySectionId } from "@/lib/sections";
@@ -34,7 +35,7 @@ export function StudyClient({ courseId, title, primarySection, hskLevel }: Props
   const sectionLabel = STUDY_SECTIONS.find((s) => s.id === activeSection)?.label;
 
   if (accessLoading) return <p className="text-stone-500">Đang tải...</p>;
-  if (isAccessLocked(access)) return <LockScreen access={access!} />;
+  if (isAccessLocked(access) && !access?.isAdmin) return <LockScreen access={access!} />;
 
   return (
     <div className="space-y-6">
@@ -76,6 +77,15 @@ export function StudyClient({ courseId, title, primarySection, hskLevel }: Props
 
       {activeSection === "sentence_order" ? (
         <SentenceOrderStudy courseId={courseId} mode={mode} onModeChange={setMode} />
+      ) : activeSection === "vocabulary" || activeSection === "grammar" || activeSection === "common" ? (
+        <HskVocabStudy
+          key={`${activeSection}-${mode}`}
+          courseId={courseId}
+          section={activeSection}
+          mode={mode}
+          onModeChange={setMode}
+          onStats={handleStats}
+        />
       ) : (
         <AnkiStudy
           key={`${activeSection}-${mode}`}

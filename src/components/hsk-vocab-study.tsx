@@ -122,32 +122,55 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
 
   const rate = async (rating: 1 | 2 | 3 | 4) => {
     if (!current || !currentRaw) return;
-    const res = await fetch("/api/reviews", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        cardId: current.id,
-        cardType: (currentRaw as { cardType?: string }).cardType ?? "viet_trung",
-        rating,
-      }),
-    });
-    const data = await res.json();
-    const requeueMs = data.requeueInMs as number | null;
+    const rated = current;
+    const ratedRaw = currentRaw;
+    const atIndex = index;
+    const isLast = atIndex + 1 >= cards.length;
+
     setRevealed(false);
     setTyped("");
     setSessionCount((n) => n + 1);
-    if (requeueMs != null && requeueMs > 0 && requeueMs <= 15 * 60_000) {
-      setTimeout(() => {
-        setCards((prev) => [...prev, current]);
-        setRawCards((prev) => [...prev, currentRaw]);
-        setPhase("study");
-      }, requeueMs);
-    }
-    if (index + 1 >= cards.length) {
+
+    if (isLast) {
       setPhase("finished");
-      void load();
     } else {
-      setIndex((i) => i + 1);
+      setIndex(atIndex + 1);
+    }
+
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardId: rated.id,
+          cardType: (ratedRaw as { cardType?: string }).cardType ?? "viet_trung",
+          rating,
+        }),
+      });
+
+      let data: { requeueInMs?: number | null } = {};
+      if (res.ok) {
+        data = await res.json();
+      } else if (res.status === 401) {
+        console.warn("[study] Phiên hết hạn — đăng nhập lại");
+      } else {
+        console.warn("[study] Lưu đánh giá thất bại");
+      }
+
+      const requeueMs = data.requeueInMs ?? null;
+      if (requeueMs != null && requeueMs > 0 && requeueMs <= 15 * 60_000) {
+        setTimeout(() => {
+          setCards((prev) => [...prev, rated]);
+          setRawCards((prev) => [...prev, ratedRaw]);
+          setPhase("study");
+        }, requeueMs);
+      }
+
+      if (isLast) {
+        void load();
+      }
+    } catch (err) {
+      console.warn("[study] Lưu đánh giá lỗi:", err);
     }
   };
 
@@ -163,7 +186,8 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
         target.isContentEditable;
 
       if (!revealed) {
-        if (e.key === "Enter" || (e.key === " " && !inTextField)) {
+        if (inTextField) return;
+        if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           showAnswer();
         }
@@ -226,7 +250,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   const intervals = previewIntervals(currentRaw.srs as Parameters<typeof previewIntervals>[0]);
 
   return (
-    <div className="hsk-screen rounded-2xl overflow-hidden">
+    <div className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden">
       {/* Header pill */}
       <div className="relative px-4 pt-6 pb-2">
         <div className="hsk-header-pill mx-auto max-w-md text-center py-2.5 px-6">
@@ -243,16 +267,12 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
       </div>
 
       {!revealed && (section !== "grammar" || current.imageUrl) && (
-        <div className="flex justify-center px-6 py-4 min-h-[140px] items-center">
+        <div className="hsk-study-image-wrap">
           {current.imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={current.imageUrl}
-              alt=""
-              className="max-h-36 max-w-full object-contain rounded-lg shadow-sm"
-            />
+            <img src={current.imageUrl} alt="" className="hsk-study-image" />
           ) : section !== "grammar" ? (
-            <div className="w-32 h-32 rounded-lg bg-white/40 flex items-center justify-center text-stone-400 text-xs">
+            <div className="w-40 h-40 rounded-lg bg-white/40 flex items-center justify-center text-stone-400 text-xs">
               Chưa có ảnh
             </div>
           ) : null}
@@ -262,18 +282,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
       {/* Main content */}
       <div className="mx-4 mb-4 space-y-3">
         {!revealed ? (
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={showAnswer}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                showAnswer();
-              }
-            }}
-            className="hsk-question-card rounded-xl p-5 space-y-4 cursor-pointer"
-          >
+          <div className="hsk-question-card rounded-xl p-5 space-y-4">
             <div className="flex gap-3 items-start">
               <span className="text-pink-400 text-2xl font-bold leading-none">?</span>
               <div className={`hsk-hints flex-1 space-y-1 ${section === "grammar" ? "text-xl font-semibold" : "text-base"}`}>
@@ -292,11 +301,9 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  e.stopPropagation();
                   showAnswer();
                 }
               }}
-              onClick={(e) => e.stopPropagation()}
               placeholder={ui.placeholder}
               className="hsk-input w-full rounded-lg px-4 py-3 text-lg text-center outline-none"
               autoFocus
@@ -332,7 +339,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-lg mx-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-2xl mx-auto w-full">
             <RateBtn label="Again" sub={intervals.again} tone="red" hotkey="1" onClick={() => void rate(1)} />
             <RateBtn label="Hard" sub={intervals.hard} tone="amber" hotkey="2" onClick={() => void rate(2)} />
             <RateBtn label="Good" sub={intervals.good} tone="green" hotkey="3" onClick={() => void rate(3)} />
@@ -341,7 +348,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
         )}
 
         <p className="text-center text-xs text-stone-500">
-          {revealed ? "1–4 hoặc bấm nút để đánh giá" : "Enter / Space — lật thẻ · bấm Hiện đáp án"}
+          {revealed ? "1–4 hoặc bấm nút để đánh giá" : "Gõ đáp án → Enter hoặc bấm Hiện đáp án"}
           {" · "}
           {index + 1} / {cards.length}
         </p>
@@ -384,19 +391,15 @@ function HskAnswerBack({
       </div>
 
       {/* Image */}
-      <div className="flex justify-center py-2 min-h-[120px] items-center">
+      <div className="hsk-study-image-wrap min-h-[180px] py-2">
         {card.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={card.imageUrl}
-            alt=""
-            className="max-h-32 max-w-full object-contain rounded-lg shadow-sm bg-white/50"
-          />
+          <img src={card.imageUrl} alt="" className="hsk-study-image bg-white/50" />
         ) : null}
       </div>
 
       {/* Large answer */}
-      <div className="hsk-char-display mx-auto max-w-lg text-center py-4 px-6 rounded-xl bg-white/90 shadow-sm">
+      <div className="hsk-char-display w-full text-center py-4 px-6 rounded-xl bg-white/90 shadow-sm">
         <span className={`${mainDisplay} font-semibold text-stone-900`}>{card.answer}</span>
       </div>
 

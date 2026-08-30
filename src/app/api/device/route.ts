@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { registerDevice } from "@/lib/devices";
+import { resolveSessionUserId } from "@/lib/session-user";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -8,6 +9,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const userId = await resolveSessionUserId(session.user.id, session.user.email);
+  if (!userId) {
+    return NextResponse.json(
+      { error: "session_invalid", message: "Vui lòng đăng xuất và đăng nhập lại." },
+      { status: 401 },
+    );
+  }
   const body = (await req.json()) as {
     deviceKey?: string;
     label?: string;
@@ -19,10 +27,11 @@ export async function POST(req: Request) {
 
   const userAgent = req.headers.get("user-agent") ?? undefined;
   const result = await registerDevice(
-    session.user.id,
+    userId,
     body.deviceKey,
     userAgent,
     body.label,
+    session.user.email,
   );
 
   if (!result.ok) {

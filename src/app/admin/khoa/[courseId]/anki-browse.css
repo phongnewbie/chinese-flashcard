@@ -56,6 +56,20 @@
   color: #047857 !important;
 }
 
+.anki-win-study-btn {
+  background: #059669 !important;
+  border-color: #047857 !important;
+  color: #fff !important;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.anki-win-study-btn:hover {
+  background: #047857 !important;
+  color: #fff !important;
+}
+
 .anki-win-menubar-title {
   margin-left: auto;
   font-weight: 600;
@@ -320,6 +334,36 @@
   color: #666;
   font-size: 9px;
   text-align: center;
+}
+
+.anki-win-deck .chev-btn {
+  cursor: pointer;
+}
+
+.anki-win-deck .deck-icon {
+  width: 16px;
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 1;
+  text-align: center;
+  opacity: 0.92;
+}
+
+.anki-win-deck .deck-icon-leaf {
+  font-size: 10px;
+}
+
+.anki-deck-branch {
+  display: block;
+}
+
+.anki-win-deck-root .name {
+  font-weight: 600;
+}
+
+.anki-win-deck.child .name,
+.anki-win-deck.grandchild .name {
+  font-weight: 500;
 }
 
 .anki-win-deck .name {

@@ -1,5 +1,6 @@
 import { getAudioUploadDir, getImageUploadDir, getUploadRoot } from "@/lib/paths";
 import { readFile } from "fs/promises";
+import { existsSync } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 
@@ -61,6 +62,22 @@ export async function GET(_req: Request, context: RouteContext) {
       },
     });
   } catch {
+    const publicPath = path.join(process.cwd(), "public", "uploads", ...segments.map(decodeURIComponent));
+    if (existsSync(publicPath)) {
+      try {
+        const data = await readFile(publicPath);
+        const ext = path.extname(publicPath).toLowerCase();
+        const type = MIME[ext] ?? "application/octet-stream";
+        return new NextResponse(data, {
+          headers: {
+            "Content-Type": type,
+            "Cache-Control": "public, max-age=86400",
+          },
+        });
+      } catch {
+        /* fall through */
+      }
+    }
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 }

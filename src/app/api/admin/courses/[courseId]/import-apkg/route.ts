@@ -1,6 +1,8 @@
 import { requireAdmin } from "@/lib/api-auth";
-import { parseApkgBuffer } from "@/lib/apkg-import";
+import { parseApkgWithMedia } from "@/lib/apkg-import";
 import { stringifyExtraFields } from "@/lib/fields";
+import { getAudioUploadDir } from "@/lib/paths";
+import type { StudySectionId } from "@/lib/sections";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -16,7 +18,7 @@ export async function POST(req: Request, context: RouteContext) {
 
   const form = await req.formData();
   const file = form.get("file");
-  const section = String(form.get("section") ?? "vocabulary");
+  const section = (course.primarySection as StudySectionId | null) ?? "vocabulary";
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "file required" }, { status: 400 });
@@ -24,8 +26,11 @@ export async function POST(req: Request, context: RouteContext) {
 
   const buf = Buffer.from(await file.arrayBuffer());
   let notes;
+  let mediaImported = 0;
   try {
-    notes = await parseApkgBuffer(buf);
+    const parsed = await parseApkgWithMedia(buf, getAudioUploadDir());
+    notes = parsed.notes;
+    mediaImported = parsed.mediaImported;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Invalid apkg";
     return NextResponse.json({ error: msg }, { status: 400 });
@@ -49,6 +54,7 @@ export async function POST(req: Request, context: RouteContext) {
       front: n.front,
       back: n.back,
       pinyin: n.pinyin || null,
+      audioUrl: n.audioUrl,
       extraFields: stringifyExtraFields({
         ...n.extras,
         ...(n.tags ? { Tags: n.tags } : {}),
@@ -57,5 +63,5 @@ export async function POST(req: Request, context: RouteContext) {
     })),
   });
 
-  return NextResponse.json({ ok: true, imported: filtered.length });
+  return NextResponse.json({ ok: true, imported: filtered.length, mediaImported });
 }

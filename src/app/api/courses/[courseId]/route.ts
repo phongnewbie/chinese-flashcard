@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { getAccessStatus } from "@/lib/access";
+import { requireStudyAccess } from "@/lib/study-access";
 import { canAccessCourse } from "@/lib/hsk-enrollment";
 import { prisma } from "@/lib/db";
 import { STUDY_SECTIONS, type StudySectionId } from "@/lib/sections";
@@ -25,10 +25,8 @@ export async function GET(_req: Request, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const access = await getAccessStatus(session.user.id, session.user.email);
-  if (!access.allowed) {
-    return NextResponse.json({ error: "locked", access }, { status: 403 });
-  }
+  const { error: accessError } = await requireStudyAccess(session.user.id, session.user.email);
+  if (accessError) return accessError;
 
   const { courseId } = await context.params;
 

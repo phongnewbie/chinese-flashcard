@@ -7,8 +7,8 @@ import {
   serializeFieldDefEntries,
 } from "@/lib/field-defs";
 import { getSectionPreset } from "@/lib/section-presets";
-import { resolveAudioUrl } from "@/lib/import-cards";
-import { firstSoundInText, parseSoundFilename, toSoundTag } from "@/lib/anki-sound";
+import { firstAudioInText, parseSoundFilename, toSoundTag } from "@/lib/anki-sound";
+import { storeAudioReference } from "@/lib/import-cards";
 import { isImageFieldLabel } from "@/lib/paste-image";
 import type { StudySectionId } from "@/lib/sections";
 
@@ -186,7 +186,9 @@ function fieldRowForLabel(
           : core.key === "pinyin"
             ? card.pinyin ?? ""
             : card.audioUrl
-              ? toSoundTag(card.audioUrl)
+              ? /^https?:\/\//i.test(card.audioUrl)
+                ? card.audioUrl
+                : toSoundTag(card.audioUrl)
               : "";
     return {
       key: core.key,
@@ -235,16 +237,13 @@ export function noteFieldsToCardPayload(
     }
   }
 
-  let audio = get("audioUrl");
+  let audio = get("audioUrl") || getLabel("ÂM THANH") || getLabel("Âm thanh") || getLabel("Audio");
   const fromTag = parseSoundFilename(audio);
   if (fromTag) audio = fromTag;
-  else if (audio.startsWith("[sound:")) {
-    audio = audio.replace(/^\[sound:([^\]]+)\]$/, "$1");
-  }
 
   if (!audio) {
     for (const f of fields) {
-      const inline = firstSoundInText(f.value);
+      const inline = firstAudioInText(f.value);
       if (inline) {
         audio = inline;
         break;
@@ -252,9 +251,9 @@ export function noteFieldsToCardPayload(
     }
   }
 
-  const hanViet = getLabel("Nghĩa hán việt") || getLabel("HÁN VIỆT");
   if (!audio) {
-    const soundInHanViet = firstSoundInText(hanViet);
+    const hanViet = getLabel("Nghĩa hán việt") || getLabel("HÁN VIỆT");
+    const soundInHanViet = firstAudioInText(hanViet);
     if (soundInHanViet) audio = soundInHanViet;
   }
 
@@ -263,7 +262,7 @@ export function noteFieldsToCardPayload(
     front: get("front") || getLabel("Tiếng Trung") || getLabel("CHỮ HÁN"),
     back: get("back") || getLabel("Nghĩa tiếng Việt") || getLabel("NGHĨA"),
     pinyin: get("pinyin") || getLabel("Pinyin") || getLabel("PINYIN") || null,
-    audioUrl: audio ? (resolveAudioUrl(audio, "/uploads/audio") ?? null) : null,
+    audioUrl: storeAudioReference(audio),
     extraFields: stringifyExtraFields(extras),
   };
 }

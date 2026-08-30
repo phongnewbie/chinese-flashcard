@@ -61,9 +61,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user?.id) {
         token.sub = user.id;
-        const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
-        token.isPremium = dbUser?.isPremium ?? false;
-        token.canEditContent = dbUser?.canEditContent ?? false;
+      }
+      if (token.sub) {
+        const dbUser = await prisma.user.findUnique({ where: { id: token.sub } });
+        if (dbUser) {
+          token.isPremium = dbUser.isPremium;
+          token.canEditContent = dbUser.canEditContent;
+          token.email = dbUser.email;
+        } else if (typeof token.email === "string" && token.email) {
+          const byEmail = await prisma.user.findUnique({
+            where: { email: normalizeEmail(token.email) },
+          });
+          if (byEmail) {
+            token.sub = byEmail.id;
+            token.isPremium = byEmail.isPremium;
+            token.canEditContent = byEmail.canEditContent;
+            token.email = byEmail.email;
+          }
+        }
       }
       return token;
     },
@@ -72,6 +87,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.sub;
         session.user.isPremium = Boolean(token.isPremium);
         session.user.canEditContent = Boolean(token.canEditContent);
+        if (token.email && typeof token.email === "string") {
+          session.user.email = token.email;
+        }
       }
       return session;
     },

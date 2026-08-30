@@ -61,15 +61,17 @@ export async function GET() {
   };
 
   const deckRows: DeckRow[] = courses.map((course) => {
-    const courseReviews = course.cards.flatMap((c) => reviewsByCard.get(c.id) ?? []);
-    const stats = statsForCourse(course, courseReviews);
+    const section = course.primarySection ?? "vocabulary";
+    const sectionCards = course.cards.filter((c) => c.section === section);
+    const courseReviews = sectionCards.flatMap((c) => reviewsByCard.get(c.id) ?? []);
+    const stats = statsForCourse({ ...course, cards: sectionCards }, courseReviews);
     return {
       id: course.id,
       title: course.title,
       hskLevel: course.hskLevel!,
       primarySection: course.primarySection ?? "vocabulary",
       sortOrder: course.sortOrder,
-      cardCount: course.cards.length,
+      cardCount: sectionCards.length,
       stats,
     };
   });
@@ -102,6 +104,7 @@ export async function GET() {
 
   return NextResponse.json({
     isAdmin,
+    isAdminAccount: rawAdmin,
     studentPreview: rawAdmin && studentPreview,
     enrolledLevels,
     hskRestricted,

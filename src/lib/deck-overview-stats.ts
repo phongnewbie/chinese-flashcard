@@ -33,11 +33,12 @@ export function statsForCourse(
   reviews: ReviewRow[],
   maxNew = 20,
 ): DeckCountStats {
-  if (course.cards.length === 0) return emptyDeckStats();
   const section = course.primarySection ?? "vocabulary";
+  const sectionCards = course.cards.filter((c) => c.section === section);
+  if (sectionCards.length === 0) return emptyDeckStats();
   const cardTypes = parseCourseCardTypes(course.cardTypes, section);
   const { stats } = buildStudyQueue({
-    cards: course.cards,
+    cards: sectionCards,
     cardTypes,
     reviews,
     mode: "review",

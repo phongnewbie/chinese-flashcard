@@ -1,28 +1,95 @@
 import JSZip from "jszip";
 import Database from "better-sqlite3";
+import { mkdir, writeFile } from "fs/promises";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
-import { join } from "path";
+import path from "path";
+import { firstAudioInText } from "@/lib/anki-sound";
+import { storeAudioReference } from "@/lib/import-cards";
 
 export type ApkgNote = {
   front: string;
   back: string;
   pinyin: string;
   tags: string;
+  audioUrl: string | null;
   extras: Record<string, string>;
+};
+
+export type ApkgImportResult = {
+  notes: ApkgNote[];
+  mediaImported: number;
 };
 
 const FIELD_SEP = "\u001f";
 
+function safeMediaName(filename: string): string {
+  const base = path.basename(filename.trim());
+  return base.replace(/[^\w.\-()+\u4e00-\u9fff]/g, "_") || "media.bin";
+}
+
+/** Giải nén file media từ .apkg vào thư mục audio upload. */
+export async function extractApkgMedia(buffer: Buffer, audioDestDir: string): Promise<number> {
+  const zip = await JSZip.loadAsync(buffer);
+  const mediaEntry = zip.file("media");
+  if (!mediaEntry) return 0;
+
+  const raw = await mediaEntry.async("nodebuffer");
+  let mapping: Record<string, string> = {};
+  try {
+    mapping = JSON.parse(raw.toString("utf8")) as Record<string, string>;
+  } catch {
+    return 0;
+  }
+
+  await mkdir(audioDestDir, { recursive: true });
+  let count = 0;
+
+  for (const [idx, originalName] of Object.entries(mapping)) {
+    if (!originalName?.trim()) continue;
+    const entry = zip.file(idx);
+    if (!entry) continue;
+    const fileName = safeMediaName(originalName);
+    const destPath = path.join(audioDestDir, fileName);
+    const data = await entry.async("nodebuffer");
+    await writeFile(destPath, data);
+    count += 1;
+  }
+
+  return count;
+}
+
+function pickAudioUrl(front: string, back: string, pinyin: string, extras: Record<string, string>): string | null {
+  for (const raw of [
+    firstAudioInText(front),
+    firstAudioInText(back),
+    firstAudioInText(pinyin),
+    ...Object.values(extras).map((v) => firstAudioInText(v)),
+  ]) {
+    if (raw) return storeAudioReference(raw);
+  }
+  return null;
+}
+
 export async function parseApkgBuffer(buffer: Buffer): Promise<ApkgNote[]> {
+  const result = await parseApkgWithMedia(buffer);
+  return result.notes;
+}
+
+export async function parseApkgWithMedia(buffer: Buffer, audioDestDir?: string): Promise<ApkgImportResult> {
+  let mediaImported = 0;
+  if (audioDestDir) {
+    mediaImported = await extractApkgMedia(buffer, audioDestDir);
+  }
+
   const zip = await JSZip.loadAsync(buffer);
   const collName = Object.keys(zip.files).find((n) => /^collection\.anki2/i.test(n));
   const collEntry = collName ? zip.file(collName) : null;
   if (!collEntry) throw new Error("Không tìm thấy collection.anki2 trong file apkg");
 
   const dbBuf = await collEntry.async("nodebuffer");
-  const dir = mkdtempSync(join(tmpdir(), "apkg-"));
-  const dbPath = join(dir, "col.anki2");
+  const dir = mkdtempSync(path.join(tmpdir(), "apkg-"));
+  const dbPath = path.join(dir, "col.anki2");
   writeFileSync(dbPath, dbBuf);
 
   try {
@@ -32,7 +99,7 @@ export async function parseApkgBuffer(buffer: Buffer): Promise<ApkgNote[]> {
       .all() as { flds: string; tags: string }[];
     db.close();
 
-    return rows.map((row) => {
+    const notes = rows.map((row) => {
       const parts = row.flds.split(FIELD_SEP);
       const front = parts[0]?.trim() ?? "";
       const back = parts[1]?.trim() ?? "";
@@ -46,9 +113,12 @@ export async function parseApkgBuffer(buffer: Buffer): Promise<ApkgNote[]> {
         back,
         pinyin,
         tags: (row.tags ?? "").replace(/\s+/g, " ").trim(),
+        audioUrl: pickAudioUrl(front, back, pinyin, extras),
         extras,
       };
     });
+
+    return { notes, mediaImported };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

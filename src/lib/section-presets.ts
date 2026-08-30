@@ -86,11 +86,14 @@ const VOCABULARY_PRESET: SectionPreset = {
     field(VOCAB_FIELDS.pos),
     field(VOCAB_FIELDS.meaning, { fontSize: 20, htmlEditor: true }),
     field(VOCAB_FIELDS.example, { htmlEditor: true, collapse: false }),
-    field("ÂM THANH", { description: "Tên file mp3 đã upload hoặc [sound:ten.mp3]" }),
+    field("ẢNH", { description: "Paste ảnh trực tiếp (Ctrl+V)" }),
+    field("ÂM THANH", { description: "Link mp3 (https://…), [sound:ten.mp3] hoặc tên file đã upload" }),
   ],
   frontTemplate: `<div class="card front">
   <div class="meaning">{{${VOCAB_FIELDS.meaning}}}</div>
   {{#${VOCAB_FIELDS.pos}}}<div class="meta-row"><strong>Loại từ:</strong> {{${VOCAB_FIELDS.pos}}}</div>{{/${VOCAB_FIELDS.pos}}}
+  {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
+  {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
   <p class="hint">Enter / Space — lật thẻ</p>
 </div>`,
   backTemplate: `<div class="card back">
@@ -99,8 +102,9 @@ const VOCABULARY_PRESET: SectionPreset = {
   {{#${VOCAB_FIELDS.hanViet}}}<div class="meta-row"><strong>Hán Việt:</strong> {{${VOCAB_FIELDS.hanViet}}}</div>{{/${VOCAB_FIELDS.hanViet}}}
   {{#${VOCAB_FIELDS.pos}}}<div class="meta-row"><strong>Loại từ:</strong> {{${VOCAB_FIELDS.pos}}}</div>{{/${VOCAB_FIELDS.pos}}}
   <div class="meaning">{{${VOCAB_FIELDS.meaning}}}</div>
+  {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
   {{#${VOCAB_FIELDS.example}}}<div class="example"><strong>Đặt câu:</strong><br>{{${VOCAB_FIELDS.example}}}</div>{{/${VOCAB_FIELDS.example}}}
-  {{#Audio}}{{Audio}}{{/Audio}}
+  {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
 </div>`,
   cardCss: BASE_CARD_CSS,
   cardTypes: [
@@ -118,18 +122,22 @@ const GRAMMAR_PRESET: SectionPreset = {
     field("GIẢI THÍCH", { fontSize: 20, description: "Giải thích tiếng Việt", htmlEditor: true }),
     field("VÍ DỤ", { description: "Câu ví dụ — Trung / Pinyin / Việt", htmlEditor: true }),
     field("GHI CHÚ", { htmlEditor: true, collapse: true }),
+    field("ẢNH", { description: "Paste ảnh trực tiếp (Ctrl+V)" }),
     field("ÂM THANH"),
   ],
   frontTemplate: `<div class="card front">
   <div class="explain">{{Back}}</div>
+  {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
+  {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
   <p class="hint">Enter / Space — lật thẻ</p>
 </div>`,
   backTemplate: `<div class="card back">
   <div class="answer-cn">{{Front}}</div>
   {{#Pinyin}}<div class="pinyin">{{Pinyin}}</div>{{/Pinyin}}
+  {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
   {{#VÍ DỤ}}<div class="example"><strong>Ví dụ:</strong><br>{{VÍ DỤ}}</div>{{/VÍ DỤ}}
   {{#GHI CHÚ}}<div class="note">{{GHI CHÚ}}</div>{{/GHI CHÚ}}
-  {{#Audio}}{{Audio}}{{/Audio}}
+  {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
 </div>`,
   cardCss: BASE_CARD_CSS,
   cardTypes: [{ id: "trung_viet", label: "Trung → Việt", ord: 0 }],
@@ -144,17 +152,22 @@ const SENTENCE_ORDER_PRESET: SectionPreset = {
     field("PINYIN", { fontSize: 18 }),
     field("NGHĨA", { description: "Nghĩa tiếng Việt" }),
     field("GHI CHÚ", { collapse: true }),
+    field("ẢNH", { description: "Paste ảnh trực tiếp (Ctrl+V)" }),
   ],
   frontTemplate: `<div class="card front">
   <div class="example"><strong>Sắp xếp các mảnh:</strong><br>{{Front}}</div>
   {{#NGHĨA}}<div class="meta-row">{{NGHĨA}}</div>{{/NGHĨA}}
+  {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
+  {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
   <p class="hint">Enter / Space — lật thẻ</p>
 </div>`,
   backTemplate: `<div class="card back">
   <div class="answer-cn">{{Back}}</div>
   {{#Pinyin}}<div class="pinyin">{{Pinyin}}</div>{{/Pinyin}}
+  {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
   {{#NGHĨA}}<div class="meaning">{{NGHĨA}}</div>{{/NGHĨA}}
   {{#GHI CHÚ}}<div class="note">{{GHI CHÚ}}</div>{{/GHI CHÚ}}
+  {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
 </div>`,
   cardCss: BASE_CARD_CSS,
   cardTypes: [{ id: "default", label: "Default", ord: 0 }],
@@ -169,18 +182,22 @@ const COMMON_PRESET: SectionPreset = {
     field("PINYIN", { fontSize: 18 }),
     field("VÍ DỤ", { description: "Hội thoại mẫu", htmlEditor: true }),
     field("GHI CHÚ", { collapse: true }),
+    field("ẢNH", { description: "Paste ảnh trực tiếp (Ctrl+V)" }),
     field("ÂM THANH"),
   ],
   frontTemplate: `<div class="card front">
   <div class="explain">{{Front}}</div>
+  {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
+  {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
   <p class="hint">Enter / Space — lật thẻ</p>
 </div>`,
   backTemplate: `<div class="card back">
   <div class="answer-cn">{{Back}}</div>
   {{#Pinyin}}<div class="pinyin">{{Pinyin}}</div>{{/Pinyin}}
+  {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
   {{#VÍ DỤ}}<div class="example"><strong>Ví dụ:</strong><br>{{VÍ DỤ}}</div>{{/VÍ DỤ}}
   {{#GHI CHÚ}}<div class="note">{{GHI CHÚ}}</div>{{/GHI CHÚ}}
-  {{#Audio}}{{Audio}}{{/Audio}}
+  {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
 </div>`,
   cardCss: BASE_CARD_CSS,
   cardTypes: [{ id: "viet_trung", label: "Việt → Trung", ord: 0 }],

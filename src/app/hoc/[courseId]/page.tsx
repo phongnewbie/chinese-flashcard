@@ -21,12 +21,13 @@ export default async function StudyPage({ params }: PageProps) {
   const isAdminUi = effectiveAdmin(rawAdmin, studentPreview);
 
   const course = await prisma.course.findFirst({
-    where: { id: courseId, published: true },
+    where: rawAdmin ? { id: courseId } : { id: courseId, published: true },
     select: { id: true, title: true, primarySection: true, hskLevel: true },
   });
   if (!course) notFound();
 
   const courseAllowed =
+    rawAdmin ||
     isAdminUi ||
     (await canAccessCourse(session.user.id, session.user.email, courseId));
 
@@ -34,7 +35,7 @@ export default async function StudyPage({ params }: PageProps) {
     <>
       <AppHeader />
       <DeviceGate>
-        <main className="mx-auto max-w-3xl px-4 py-8">
+        <main className="mx-auto max-w-5xl px-4 py-8">
           {rawAdmin && (
             <p className="mb-4 text-right">
               <Link

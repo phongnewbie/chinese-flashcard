@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/api-auth";
 import {
   parseImportFile,
   resolveAudioUrl,
+  storeAudioReference,
   type ImportPreview,
 } from "@/lib/import-cards";
 import { mergeFieldDefs, stringifyExtraFields } from "@/lib/fields";
@@ -75,11 +76,11 @@ async function handleImport(req: Request, context: RouteContext) {
 
   const rows = result.cards.map((card, i) => ({
     courseId,
-    section: card.section,
+    section,
     front: card.front,
     back: card.back,
     pinyin: card.pinyin ?? null,
-    audioUrl: resolveAudioUrl(card.audioUrl, audioBase) ?? null,
+    audioUrl: storeAudioReference(card.audioUrl, audioBase),
     extraFields: stringifyExtraFields(card.extraFields ?? {}),
     sortOrder: order + i + 1,
   }));

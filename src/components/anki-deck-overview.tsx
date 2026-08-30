@@ -27,6 +27,53 @@ const MODES: { id: StudyMode; label: string; hint: string }[] = [
   { id: "all", label: "Học tất cả", hint: "Custom study — mọi thẻ" },
 ];
 
+function deckTotal(stats: DeckStats): number {
+  return stats.total ?? stats.new + stats.learning + stats.due;
+}
+
+function emptyQueueMessage(stats: DeckStats, mode: StudyMode): { title: string; detail: string } {
+  const total = deckTotal(stats);
+
+  if (total === 0) {
+    return {
+      title: "Chưa có thẻ để học",
+      detail:
+        "Bộ thẻ này chưa có thẻ trong mục này. Vào Quản trị → Browse để thêm hoặc import Excel.",
+    };
+  }
+
+  if (mode === "review" && stats.new > 0 && stats.queue === 0) {
+    return {
+      title: "Chưa có thẻ đến hạn ôn",
+      detail: "Có thẻ mới nhưng chế độ Ôn SRS chỉ lấy thẻ đến hạn. Thử “Chỉ thẻ mới” hoặc “Học tất cả”.",
+    };
+  }
+
+  if (mode === "new" && stats.new === 0) {
+    return {
+      title: "Không còn thẻ mới",
+      detail: "Mọi thẻ trong mục này đã được học ít nhất một lần. Thử “Ôn SRS” hoặc “Học tất cả”.",
+    };
+  }
+
+  if (mode === "new" && stats.new > 0 && stats.queue === 0) {
+    return {
+      title: "Không thêm được thẻ mới hôm nay",
+      detail:
+        "Giới hạn “Thẻ mới/ngày” có thể đang là 0 hoặc đã đủ. Thử “Học tất cả” hoặc nhờ admin tăng giới hạn trong Quản trị.",
+    };
+  }
+
+  if (stats.queue === 0) {
+    return {
+      title: "Không còn thẻ trong hàng đợi",
+      detail: "Thử chế độ học khác hoặc quay lại sau khi có thẻ đến hạn ôn.",
+    };
+  }
+
+  return { title: "", detail: "" };
+}
+
 export function AnkiDeckOverview({
   title,
   section,
@@ -37,9 +84,11 @@ export function AnkiDeckOverview({
 }: Props) {
   const canStudy = stats.queue > 0;
   const sectionName = sectionLabel(section);
+  const total = deckTotal(stats);
+  const emptyMsg = !canStudy ? emptyQueueMessage(stats, mode) : null;
 
   return (
-    <div className="anki-deck-screen rounded-2xl overflow-hidden">
+    <div className="anki-deck-screen hsk-study-shell rounded-2xl overflow-hidden">
       <div className="px-4 pt-6 pb-3">
         <div className="hsk-header-pill mx-auto max-w-md text-center py-2.5 px-6">
           {title || sectionName}
@@ -49,7 +98,7 @@ export function AnkiDeckOverview({
       <div className="mx-4 mb-4 rounded-xl bg-white/90 border border-stone-200 shadow-sm p-6 space-y-6">
         <div className="text-center space-y-1">
           <p className="text-sm text-stone-500">{sectionName}</p>
-          <p className="text-xs text-stone-400">Tổng thẻ: {stats.total ?? stats.new + stats.learning + stats.due}</p>
+          <p className="text-xs text-stone-400">Tổng thẻ: {total}</p>
         </div>
 
         <div className="grid grid-cols-3 gap-3 text-center">
@@ -90,24 +139,16 @@ export function AnkiDeckOverview({
             Học ngay
           </button>
 
-          {!canStudy ? (
+          {!canStudy && emptyMsg ? (
             <div className="text-center space-y-2 max-w-sm">
-              <p className="text-base font-medium text-stone-800">
-                Chúc mừng! Bạn đã xong bộ thẻ này.
-              </p>
-              <p className="text-sm text-stone-500">
-                {stats.new > 0 && mode === "review"
-                  ? "Có thẻ mới nhưng chưa đến lượt trong chế độ Ôn SRS. Thử “Chỉ thẻ mới” hoặc quay lại sau."
-                  : stats.total === 0
-                    ? "Chưa có thẻ trong mục này. Vào Quản trị → Browse để thêm hoặc import."
-                    : "Không còn thẻ trong hàng đợi. Quay lại sau hoặc chọn chế độ học khác."}
-              </p>
+              <p className="text-base font-medium text-stone-800">{emptyMsg.title}</p>
+              <p className="text-sm text-stone-500">{emptyMsg.detail}</p>
             </div>
-          ) : (
+          ) : canStudy ? (
             <p className="text-sm text-stone-500">
               {stats.queue} thẻ sẵn sàng · {mode === "review" ? "Ôn SRS" : mode === "new" ? "Thẻ mới" : "Tất cả"}
             </p>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
@@ -148,7 +189,7 @@ export function AnkiSessionFinished({
   onContinue: () => void;
 }) {
   return (
-    <div className="anki-deck-screen rounded-2xl overflow-hidden p-8 text-center space-y-5">
+    <div className="anki-deck-screen hsk-study-shell rounded-2xl overflow-hidden p-8 text-center space-y-5">
       <div className="hsk-header-pill mx-auto max-w-md py-2.5 px-6">{title}</div>
       <div className="mx-auto max-w-sm space-y-3">
         <p className="text-xl font-semibold text-stone-800">Chúc mừng!</p>

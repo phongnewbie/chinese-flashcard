@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { ensureAppSettings, prisma } from "@/lib/db";
 import { parseLearningSteps } from "@/lib/card-types";
+import { resolveSessionUserId } from "@/lib/session-user";
 import { schedule, type SrsRating, previewIntervals, defaultReviewState } from "@/lib/srs";
 import { NextResponse } from "next/server";
 
@@ -8,6 +9,17 @@ export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const userId = await resolveSessionUserId(session.user.id, session.user.email);
+  if (!userId) {
+    return NextResponse.json(
+      {
+        error: "session_invalid",
+        message: "Phiên đăng nhập không còn hợp lệ. Vui lòng đăng xuất và đăng nhập lại.",
+      },
+      { status: 401 },
+    );
   }
 
   const body = (await req.json()) as {
@@ -39,7 +51,7 @@ export async function POST(req: Request) {
   const existing = await prisma.cardReview.findUnique({
     where: {
       userId_cardId_cardType: {
-        userId: session.user.id,
+        userId,
         cardId: body.cardId,
         cardType,
       },
@@ -50,13 +62,13 @@ export async function POST(req: Request) {
     const saved = await prisma.cardReview.upsert({
       where: {
         userId_cardId_cardType: {
-          userId: session.user.id,
+          userId,
           cardId: body.cardId,
           cardType,
         },
       },
       create: {
-        userId: session.user.id,
+        userId,
         cardId: body.cardId,
         cardType,
         suspended: body.suspend,
@@ -72,13 +84,13 @@ export async function POST(req: Request) {
     const saved = await prisma.cardReview.upsert({
       where: {
         userId_cardId_cardType: {
-          userId: session.user.id,
+          userId,
           cardId: body.cardId,
           cardType,
         },
       },
       create: {
-        userId: session.user.id,
+        userId,
         cardId: body.cardId,
         cardType,
         buriedUntil: until,
@@ -110,13 +122,13 @@ export async function POST(req: Request) {
   const saved = await prisma.cardReview.upsert({
     where: {
       userId_cardId_cardType: {
-        userId: session.user.id,
+        userId,
         cardId: body.cardId,
         cardType,
       },
     },
     create: {
-      userId: session.user.id,
+      userId,
       cardId: body.cardId,
       cardType,
       ease: next.ease,
@@ -140,7 +152,7 @@ export async function POST(req: Request) {
 
   await prisma.reviewLog.create({
     data: {
-      userId: session.user.id,
+      userId,
       cardId: body.cardId,
       cardType,
       rating,

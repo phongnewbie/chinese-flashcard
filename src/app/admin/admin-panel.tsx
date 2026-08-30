@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { formatDeviceLabel } from "@/lib/device-label";
 import {
   AdminAlert,
   AdminBtnPrimary,
@@ -31,7 +32,7 @@ type UserRow = {
   canStudy: boolean;
   canEditContent: boolean;
   trialStartedAt: string | null;
-  devices: { id: string; deviceKey: string; label: string | null; lastSeenAt: string }[];
+  devices: { id: string; deviceKey: string; label: string | null; userAgent: string | null; lastSeenAt: string }[];
 };
 
 type CourseRow = {
@@ -231,17 +232,15 @@ export function AdminPanel({ section = "all" }: { section?: "all" | "settings" |
       {(section === "all" || section === "students") && (
         <AdminCard>
           <AdminSectionHeader
-            title="Học viên & quyền truy cập"
-            description="Cấp quyền học không giới hạn hoặc reset thời gian học thử"
+            title="Học viên"
+            description="Reset thời gian học thử hoặc gỡ thiết bị đăng nhập"
           />
           <div className="admin-table-wrap">
             <table className="admin-table">
           <thead>
             <tr className="text-stone-500 border-b">
               <th className="py-2 pr-4">Email</th>
-              <th className="py-2 pr-4">Cấp quyền học</th>
-              <th className="py-2 pr-4">Sửa nội dung</th>
-              <th className="py-2">Thiết bị</th>
+              <th className="py-2">Thiết bị đăng nhập</th>
             </tr>
           </thead>
           <tbody>
@@ -257,33 +256,19 @@ export function AdminPanel({ section = "all" }: { section?: "all" | "settings" |
                     Reset học thử
                   </button>
                 </td>
-                <td className="py-3 pr-4">
-                  <label className="inline-flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={u.canStudy || u.isPremium}
-                      onChange={(e) => patchUser(u.id, { canStudy: e.target.checked })}
-                    />
-                    <span className="text-xs text-stone-600">
-                      {u.canStudy || u.isPremium ? "Được học" : "Chưa cấp"}
-                    </span>
-                  </label>
-                </td>
-                <td className="py-3 pr-4">
-                  <input
-                    type="checkbox"
-                    checked={u.canEditContent}
-                    onChange={(e) => patchUser(u.id, { canEditContent: e.target.checked })}
-                  />
-                </td>
                 <td className="py-3">
-                  <ul className="space-y-1">
+                  <ul className="space-y-2">
                     {u.devices.map((d) => (
-                      <li key={d.id} className="flex items-center gap-2 text-xs">
-                        <span className="font-mono truncate max-w-[120px]">{d.deviceKey.slice(0, 8)}…</span>
+                      <li key={d.id} className="flex items-start gap-2 text-xs">
+                        <span className="text-stone-700">
+                          {formatDeviceLabel(d.userAgent, d.label)}
+                        </span>
+                        <span className="text-stone-400 shrink-0">
+                          {new Date(d.lastSeenAt).toLocaleDateString("vi-VN")}
+                        </span>
                         <button
                           type="button"
-                          className="text-red-600 hover:underline"
+                          className="text-red-600 hover:underline shrink-0"
                           onClick={() => removeDevice(d.id)}
                         >
                           Gỡ
@@ -297,7 +282,7 @@ export function AdminPanel({ section = "all" }: { section?: "all" | "settings" |
             ))}
             {users.length === 0 && (
               <tr>
-                <td colSpan={4}>
+                <td colSpan={2}>
                   <AdminEmpty>Chưa có học viên đăng ký</AdminEmpty>
                 </td>
               </tr>

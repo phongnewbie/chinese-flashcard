@@ -55,16 +55,35 @@ export async function GET(req: Request, context: RouteContext) {
     _count: { id: true },
   });
 
-  const subdecks = (
-    await prisma.flashcard.findMany({
-      where: { courseId, subdeck: { not: null } },
-      distinct: ["subdeck"],
-      select: { subdeck: true },
-      orderBy: { subdeck: "asc" },
-    })
-  )
-    .map((r) => r.subdeck)
-    .filter((s): s is string => !!s?.trim());
+  const subdeckRows = await prisma.flashcard.findMany({
+    where: { courseId, subdeck: { not: null } },
+    select: { section: true, subdeck: true },
+    distinct: ["section", "subdeck"],
+    orderBy: [{ section: "asc" }, { subdeck: "asc" }],
+  });
+
+  const subdecksBySection: Record<string, string[]> = {};
+  const bySubdeck: Record<string, number> = {};
+  for (const r of subdeckRows) {
+    if (!r.subdeck?.trim()) continue;
+    const name = r.subdeck.trim();
+    if (!subdecksBySection[r.section]) subdecksBySection[r.section] = [];
+    if (!subdecksBySection[r.section]!.includes(name)) {
+      subdecksBySection[r.section]!.push(name);
+    }
+  }
+
+  const subdeckCounts = await prisma.flashcard.groupBy({
+    by: ["section", "subdeck"],
+    where: { courseId, subdeck: { not: null } },
+    _count: { id: true },
+  });
+  for (const row of subdeckCounts) {
+    if (!row.subdeck?.trim()) continue;
+    bySubdeck[`${row.section}:${row.subdeck.trim()}`] = row._count.id;
+  }
+
+  const subdecks = Object.values(subdecksBySection).flat();
 
   if (!needsMemoryFilter) {
     const total = await prisma.flashcard.count({ where });
@@ -86,6 +105,8 @@ export async function GET(req: Request, context: RouteContext) {
       total,
       bySection: Object.fromEntries(bySection.map((r) => [r.section, r._count.id])),
       subdecks,
+      subdecksBySection,
+      bySubdeck,
     });
   }
 
@@ -166,5 +187,7 @@ export async function GET(req: Request, context: RouteContext) {
     total,
     bySection: Object.fromEntries(bySection.map((r) => [r.section, r._count.id])),
     subdecks,
+    subdecksBySection,
+    bySubdeck,
   });
 }

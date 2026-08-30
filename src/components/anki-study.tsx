@@ -18,12 +18,15 @@ import {
 
   renderCardTemplate,
 
+  resolveCardTypeTemplates,
+
   toCardFields,
 
   type TemplateFields,
 
 } from "@/lib/card-template";
-import { resolveAudioUrl } from "@/lib/import-cards";
+import type { CardTypeDef } from "@/lib/card-types";
+import { resolveSoundPlayUrl } from "@/lib/anki-sound";
 
 import { sectionLabel, type StudySectionId } from "@/lib/sections";
 
@@ -95,6 +98,8 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
   const [templates, setTemplates] = useState<Templates | null>(null);
 
+  const [cardTypes, setCardTypes] = useState<CardTypeDef[]>([]);
+
   const [title, setTitle] = useState("");
 
   const [stats, setStats] = useState<DeckStats>({ new: 0, learning: 0, due: 0, queue: 0, total: 0 });
@@ -108,10 +113,14 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
   const [flipped, setFlipped] = useState(false);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const cardRef = useRef<HTMLDivElement>(null);
+  const studyRef = useRef<HTMLDivElement>(null);
+  const ratingLockRef = useRef(false);
 
   const onStatsRef = useRef(onStats);
+  const rateRef = useRef<(rating: 1 | 2 | 3 | 4) => Promise<void>>(async () => {});
 
   onStatsRef.current = onStats;
 
@@ -120,6 +129,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
   const load = useCallback(async () => {
 
     setLoading(true);
+    setLoadError(null);
 
     setIndex(0);
 
@@ -135,7 +145,18 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
     setLoading(false);
 
-    if (!res.ok) return;
+    if (!res.ok) {
+      setLoadError(
+        data.error === "Forbidden"
+          ? "Không có quyền mở bộ thẻ này. Nếu đang bật “Chế độ học viên”, thử tắt ở đầu trang Bộ thẻ."
+          : data.error === "locked"
+            ? "Tài khoản đang bị khóa học thử."
+            : typeof data.error === "string"
+              ? data.error
+              : "Không tải được thẻ. Thử tải lại trang.",
+      );
+      return;
+    }
 
     const deckStats: DeckStats = {
 
@@ -159,10 +180,34 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
     setTemplates(data.templates ?? null);
 
+    setCardTypes(data.cardTypes ?? []);
+
     setTitle(data.title ?? sectionLabel(section));
 
     setPhase("overview");
 
+  }, [courseId, section, mode]);
+
+  const refreshDeck = useCallback(async () => {
+    const res = await fetch(
+      `/api/courses/${courseId}/study?section=${section}&mode=${mode}`,
+    );
+    const data = await res.json();
+    if (!res.ok) return;
+
+    const deckStats: DeckStats = {
+      new: data.stats.new,
+      learning: data.stats.learning,
+      due: data.stats.due,
+      queue: data.stats.queue,
+      total: data.stats.total,
+    };
+    setStats(deckStats);
+    onStatsRef.current?.(deckStats);
+    setCards(data.cards ?? []);
+    setTemplates(data.templates ?? null);
+    setCardTypes(data.cardTypes ?? []);
+    setTitle(data.title ?? sectionLabel(section));
   }, [courseId, section, mode]);
 
 
@@ -175,6 +220,10 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
 
+  const focusStudy = () => {
+    requestAnimationFrame(() => studyRef.current?.focus());
+  };
+
   const startStudy = () => {
 
     if (cards.length === 0) return;
@@ -186,6 +235,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
     setFlipped(false);
 
     setPhase("study");
+    focusStudy();
 
   };
 
@@ -195,11 +245,37 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
 
+  const currentCardType = useMemo(
+
+    () => cardTypes.find((t) => t.id === current?.cardType) ?? null,
+
+    [cardTypes, current?.cardType],
+
+  );
+
+
+
+  const activeTemplates = useMemo(
+
+    () =>
+
+      templates && currentCardType
+
+        ? resolveCardTypeTemplates(templates, currentCardType)
+
+        : templates,
+
+    [templates, currentCardType],
+
+  );
+
+
+
   const fields: TemplateFields | null = useMemo(
 
-    () => (current ? toCardFields(current) : null),
+    () => (current ? toCardFields(current, currentCardType) : null),
 
-    [current],
+    [current, currentCardType],
 
   );
 
@@ -216,8 +292,118 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
   const playAudio = (url: string) => {
-    const resolved = resolveAudioUrl(url, "/uploads/audio") ?? url;
-    void new Audio(resolved).play();
+    const resolved = resolveSoundPlayUrl(url);
+    const audio = new Audio(resolved);
+    void audio.play().catch(() => {
+      console.warn("[audio] Không phát được:", resolved);
+    });
+  };
+
+
+
+  const rate = useCallback(async (rating: 1 | 2 | 3 | 4) => {
+
+    if (!current || phase !== "study" || ratingLockRef.current) return;
+
+    ratingLockRef.current = true;
+
+    const rated = current;
+    const atIndex = index;
+    const isLast = atIndex + 1 >= cards.length;
+
+    setFlipped(false);
+    setSessionCount((n) => n + 1);
+
+    if (isLast) {
+      setPhase("finished");
+    } else {
+      setIndex(atIndex + 1);
+      focusStudy();
+    }
+
+    try {
+      const res = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId: rated.id, cardType: rated.cardType, rating }),
+      });
+
+      const data = res.ok ? await res.json() : {};
+      if (!res.ok) {
+        console.warn("[study] Lưu đánh giá thất bại:", data);
+      }
+
+      const requeueMs = data.requeueInMs as number | null;
+      if (requeueMs != null && requeueMs > 0 && requeueMs <= 15 * 60_000) {
+        setTimeout(() => {
+          setCards((prev) => {
+            if (prev.some((c) => c.id === rated.id && c.cardType === rated.cardType)) {
+              return prev;
+            }
+            return [...prev, rated];
+          });
+          setPhase("study");
+          focusStudy();
+        }, requeueMs);
+      }
+
+      if (isLast) {
+        void refreshDeck();
+      }
+    } catch (err) {
+      console.warn("[study] Lưu đánh giá lỗi:", err);
+    } finally {
+      ratingLockRef.current = false;
+    }
+
+  }, [current, index, cards.length, phase, refreshDeck]);
+
+  rateRef.current = rate;
+
+  const handleStudyKeyDown = (e: React.KeyboardEvent) => {
+
+    if (phase !== "study" || !current) return;
+
+    if (e.repeat) return;
+
+    const target = e.target as HTMLElement | null;
+
+    const tag = target?.tagName;
+
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+    if (target?.isContentEditable) return;
+
+
+
+    if (e.key === "Enter" || e.key === " ") {
+
+      e.preventDefault();
+
+      e.stopPropagation();
+
+      if (flipped) void rateRef.current(3);
+
+      else setFlipped(true);
+
+      return;
+
+    }
+
+
+
+    if (flipped) {
+
+      if (e.key === "1") void rateRef.current(1);
+
+      else if (e.key === "2") void rateRef.current(2);
+
+      else if (e.key === "3") void rateRef.current(3);
+
+      else if (e.key === "4") void rateRef.current(4);
+
+    }
+
   };
 
 
@@ -234,7 +420,15 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
       const btn = t.closest("[data-audio]") as HTMLElement | null;
 
-      if (btn?.dataset.audio) playAudio(btn.dataset.audio);
+      if (btn?.dataset.audio) {
+
+        e.stopPropagation();
+
+        e.preventDefault();
+
+        playAudio(btn.dataset.audio);
+
+      }
 
     };
 
@@ -246,99 +440,11 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
 
-  const rate = async (rating: 1 | 2 | 3 | 4) => {
-
-    if (!current) return;
-
-    const res = await fetch("/api/reviews", {
-
-      method: "POST",
-
-      headers: { "Content-Type": "application/json" },
-
-      body: JSON.stringify({ cardId: current.id, cardType: current.cardType, rating }),
-
-    });
-
-    const data = await res.json();
-
-    setFlipped(false);
-
-    setSessionCount((n) => n + 1);
-
-    const requeueMs = data.requeueInMs as number | null;
-
-    if (requeueMs != null && requeueMs > 0 && requeueMs <= 15 * 60_000) {
-
-      setTimeout(() => {
-
-        setCards((prev) => {
-
-          if (prev.some((c) => c.id === current.id && c.cardType === current.cardType && index < prev.length)) {
-
-            return prev;
-
-          }
-
-          return [...prev, current];
-
-        });
-
-        setPhase("study");
-
-      }, requeueMs);
-
-    }
-
-    if (index + 1 >= cards.length) {
-
-      setPhase("finished");
-
-      void load();
-
-    } else {
-
-      setIndex((i) => i + 1);
-
-    }
-
-  };
-
-
-
   useEffect(() => {
 
-    const onKey = (e: KeyboardEvent) => {
+    if (phase === "study") focusStudy();
 
-      if (phase !== "study" || !current) return;
-
-      if (e.key === " " || e.key === "Enter") {
-
-        e.preventDefault();
-
-        if (!flipped) setFlipped(true);
-
-      }
-
-      if (flipped) {
-
-        if (e.key === "1") void rate(1);
-
-        if (e.key === "2") void rate(2);
-
-        if (e.key === "3") void rate(3);
-
-        if (e.key === "4") void rate(4);
-
-      }
-
-    };
-
-    window.addEventListener("keydown", onKey);
-
-    return () => window.removeEventListener("keydown", onKey);
-
-  }, [flipped, current, phase, index, cards.length]);
+  }, [phase, index]);
 
 
 
@@ -346,6 +452,21 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
     return <p className="text-stone-500 text-center py-12">Đang tải thẻ…</p>;
 
+  }
+
+  if (loadError) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-6 text-center space-y-3">
+        <p className="text-red-800 font-medium">{loadError}</p>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="rounded-lg bg-white border border-red-200 px-4 py-2 text-sm hover:bg-red-100"
+        >
+          Thử lại
+        </button>
+      </div>
+    );
   }
 
 
@@ -404,7 +525,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
 
-  if (!current || !templates || !fields) {
+  if (!current || !activeTemplates || !fields) {
 
     return (
 
@@ -428,15 +549,20 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
   const html = flipped
 
-    ? renderCardTemplate(templates.backTemplate, fields, "back")
+    ? renderCardTemplate(activeTemplates.backTemplate, fields, "back")
 
-    : renderCardTemplate(templates.frontTemplate, fields, "front");
+    : renderCardTemplate(activeTemplates.frontTemplate, fields, "front");
 
 
 
   return (
 
-    <div className="hsk-screen rounded-2xl overflow-hidden mx-auto max-w-xl">
+    <div
+      ref={studyRef}
+      tabIndex={-1}
+      onKeyDown={handleStudyKeyDown}
+      className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none"
+    >
 
       <div className="relative px-4 pt-6 pb-2">
 
@@ -474,13 +600,19 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
         </span>
 
-        {!flipped && current.audioUrl && (
+        {current.audioUrl && (
 
           <button
 
             type="button"
 
-            onClick={() => playAudio(current.audioUrl!)}
+            onClick={(e) => {
+
+              e.stopPropagation();
+
+              playAudio(current.audioUrl!);
+
+            }}
 
             className="text-emerald-800 text-xs hover:underline"
 
@@ -498,15 +630,19 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
       <div className="mx-4 mb-4">
 
-        <style>{templates.cardCss}</style>
+        <style>{activeTemplates.cardCss}</style>
 
-        <button
+        <div
 
-          type="button"
+          onClick={(e) => {
 
-          onClick={() => !flipped && setFlipped(true)}
+            if ((e.target as HTMLElement).closest(".audio-btn, [data-audio]")) return;
 
-          className="anki-card-shell w-full rounded-xl border-2 border-[#8fad8f] bg-white p-4 shadow-sm text-left transition hover:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            if (!flipped) setFlipped(true);
+
+          }}
+
+          className="anki-card-shell w-full rounded-xl border-2 border-[#8fad8f] bg-white p-4 shadow-sm text-left transition hover:border-emerald-400 cursor-pointer"
 
         >
 
@@ -520,7 +656,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
           />
 
-        </button>
+        </div>
 
       </div>
 
@@ -566,7 +702,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
         ) : (
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-lg mx-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-2xl mx-auto w-full">
 
             <RateBtn label="Again" sub={intervals?.again} color="red" onClick={() => void rate(1)} hotkey="1" />
 
@@ -584,7 +720,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
         <p className="text-center text-xs text-stone-500">
 
-          {flipped ? "1–4 hoặc bấm nút để đánh giá" : "Enter / Space — lật thẻ · bấm Hiện đáp án"}
+          {flipped ? "Enter / Space = Good · 1–4 đánh giá" : "Enter / Space — lật thẻ · bấm Hiện đáp án"}
 
         </p>
 
@@ -642,7 +778,10 @@ function RateBtn({
 
       type="button"
 
-      onClick={onClick}
+      onClick={(e) => {
+        e.preventDefault();
+        onClick();
+      }}
 
       className={`rounded-lg border px-2 py-2 text-sm font-medium transition ${colors[color]}`}
 

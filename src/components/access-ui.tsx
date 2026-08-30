@@ -78,7 +78,7 @@ export function LockScreen({ access }: { access: AccessPayload }) {
         Liên hệ Zalo để mở khóa
       </a>
       <p className="mt-4 text-xs text-stone-500">
-        Sau khi liên hệ, giáo viên sẽ cấp quyền học trong trang Admin → Học viên &amp; quyền truy cập.
+        Sau khi liên hệ, giáo viên sẽ reset thời gian học thử hoặc gỡ thiết bị cũ trong Admin → Học viên.
       </p>
     </div>
   );

@@ -1,6 +1,7 @@
 import { parseExtraFields } from "@/lib/fields";
-import { resolveAudioUrl } from "@/lib/import-cards";
-import { parseSoundFilename, renderTextWithSound, resolveSoundPlayUrl } from "@/lib/anki-sound";
+import { resolveSoundPlayUrl, isPlayableAudio } from "@/lib/anki-sound";
+import type { CardTypeDef } from "@/lib/card-types";
+import { requiredFieldLabels } from "@/lib/section-presets";
 import { resolveImageSrc } from "@/lib/paste-image";
 import { resolveCourseTemplates, type SectionTemplatesMap } from "@/lib/section-templates";
 
@@ -65,10 +66,6 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function isAudioValue(val: string): boolean {
-  return /\.(mp3|wav|ogg|m4a|webm)(\?|$)/i.test(val) || val.startsWith("/uploads/audio");
-}
-
 function isImageFieldKey(key: string): boolean {
   const k = key.toLowerCase();
   return (
@@ -101,32 +98,28 @@ function sanitizeEmbeddedImages(html: string): string {
   return out;
 }
 
+function isAudioFieldKey(key: string): boolean {
+  const k = key.toLowerCase();
+  return k === "audio" || k === "âm thanh" || k === "am thanh" || k.includes("am thanh");
+}
+
 function fieldToHtml(key: string, val: string, side: "front" | "back"): string {
   if (!val) return "";
   const k = key.toLowerCase();
+  const trimmed = val.trim();
 
-  const soundOnly = parseSoundFilename(val.trim());
-  if (soundOnly && val.trim().match(/^\[sound:[^\]]+\]$/i)) {
-    const url = resolveSoundPlayUrl(soundOnly);
-    return `<button type="button" class="audio-btn" data-audio="${escapeHtml(url)}" title="Nghe">🔊 Nghe</button>`;
-  }
-
-  if (k === "audio" || k === "âm thanh" || k === "am thanh") {
-    if (isAudioValue(val)) {
-      const url = resolveSoundPlayUrl(val);
+  if (isAudioFieldKey(k) || isPlayableAudio(trimmed)) {
+    if (isPlayableAudio(trimmed)) {
+      const url = resolveSoundPlayUrl(trimmed);
       return `<button type="button" class="audio-btn" data-audio="${escapeHtml(url)}" title="Nghe">🔊 Nghe</button>`;
     }
-    if (/\[sound:/i.test(val)) return renderTextWithSound(val);
-    return escapeHtml(val);
+    if (/\[sound:/i.test(val) || /https?:\/\//i.test(val)) return renderTextWithSound(val);
   }
-  if (isAudioValue(val) && (k.includes("audio") || k.includes("am thanh"))) {
-    const url = resolveSoundPlayUrl(val);
-    return `<button type="button" class="audio-btn" data-audio="${escapeHtml(url)}" title="Nghe">🔊 Nghe</button>`;
-  }
+
   if (/<img\b/i.test(val) || /field-img-wrap/i.test(val)) {
     return sanitizeEmbeddedImages(val);
   }
-  if (/\[sound:/i.test(val)) {
+  if (/\[sound:/i.test(val) || /https?:\/\//i.test(val)) {
     return renderTextWithSound(val);
   }
   if (isImageFieldKey(k) && isImageFilename(val)) {
@@ -134,6 +127,34 @@ function fieldToHtml(key: string, val: string, side: "front" | "back"): string {
     return `<img src="${src}" alt="" class="field-img" style="max-width:100%;height:auto;" />`;
   }
   return escapeHtml(val);
+}
+
+function appendMissingAudioFields(html: string, fields: TemplateFields, side: "front" | "back"): string {
+  if (/data-audio|audio-btn/i.test(html)) return html;
+  for (const [key, val] of Object.entries(fields)) {
+    if (!val?.trim()) continue;
+    if (!isPlayableAudio(val.trim()) && !/\[sound:/i.test(val)) continue;
+    const rendered = fieldToHtml(key, val, side);
+    if (rendered.includes("data-audio")) {
+      return `${html}<div class="card-audio">${rendered}</div>`;
+    }
+  }
+  return html;
+}
+
+function appendMissingImageFields(html: string, fields: TemplateFields, side: "front" | "back"): string {
+  if (/field-img/i.test(html)) return html;
+  const blocks: string[] = [];
+  for (const [key, val] of Object.entries(fields)) {
+    if (!val?.trim()) continue;
+    if (!isImageFieldKey(key) && !/<img\b/i.test(val)) continue;
+    const rendered = fieldToHtml(key, val, side);
+    if (rendered && /field-img|<img\b/i.test(rendered)) {
+      blocks.push(`<div class="card-image">${rendered}</div>`);
+    }
+  }
+  if (!blocks.length) return html;
+  return `${html}${blocks.join("")}`;
 }
 
 /** Thay {{Front}}, {{#Trường}}...{{/Trường}} — hỗ trợ trường tùy chỉnh Anki */
@@ -156,7 +177,8 @@ export function renderCardTemplate(
   }
 
   html = html.replace(/\{\{[^}]+\}\}/g, "");
-  return html;
+  html = appendMissingImageFields(html, fields, side);
+  return appendMissingAudioFields(html, fields, side);
 }
 
 export function getCourseTemplates(
@@ -171,29 +193,102 @@ export function getCourseTemplates(
   return resolveCourseTemplates(course, globalSectionTemplates);
 }
 
-export function toCardFields(card: {
-  front: string;
-  back: string;
-  pinyin: string | null;
-  audioUrl: string | null;
-  section?: string;
-  extraFields?: string | null;
-}): TemplateFields {
+export function resolveCardTypeTemplates(
+  base: { frontTemplate: string; backTemplate: string; cardCss: string },
+  cardType?: CardTypeDef | null,
+) {
+  if (cardType?.layout === "custom" && cardType.frontTemplate?.trim()) {
+    return {
+      ...base,
+      frontTemplate: cardType.frontTemplate.trim(),
+      backTemplate: cardType.backTemplate?.trim() || base.backTemplate,
+    };
+  }
+  return base;
+}
+
+export function applyCardTypeLayout(
+  fields: TemplateFields,
+  card: { front: string; back: string; pinyin: string | null; section?: string },
+  cardType?: CardTypeDef | null,
+): TemplateFields {
+  const layout = cardType?.layout ?? "default";
+  if (layout === "custom" || layout === "default" || layout === "viet_trung") return fields;
+
+  const section = card.section ?? "vocabulary";
+  const { front: frontLabel, back: backLabel } = requiredFieldLabels(section);
+
+  if (layout === "trung_viet") {
+    const next: TemplateFields = {
+      ...fields,
+      Front: card.back,
+      Back: card.front,
+    };
+    if (section === "vocabulary") {
+      next["Nghĩa tiếng Việt"] = card.front;
+      next["Tiếng Trung"] = card.back;
+    } else {
+      next[frontLabel] = card.front;
+      next[backLabel] = card.back;
+    }
+    return next;
+  }
+
+  if (layout === "pinyin_trung") {
+    const p = card.pinyin?.trim() || card.back;
+    const next: TemplateFields = { ...fields, Pinyin: card.pinyin ?? "" };
+    if (section === "vocabulary") {
+      next["Nghĩa tiếng Việt"] = p;
+      next["Tiếng Trung"] = card.front;
+      next.Front = card.front;
+      next.Back = card.back;
+    } else {
+      next.Front = p;
+      next.Back = card.front;
+      next[frontLabel] = p;
+      next[backLabel] = card.front;
+    }
+    return next;
+  }
+
+  return fields;
+}
+
+export function toCardFields(
+  card: {
+    front: string;
+    back: string;
+    pinyin: string | null;
+    audioUrl: string | null;
+    section?: string;
+    extraFields?: string | null;
+  },
+  cardType?: CardTypeDef | null,
+): TemplateFields {
   const extras = parseExtraFields(card.extraFields);
+  const audioRaw =
+    card.audioUrl?.trim() ||
+    extras["ÂM THANH"]?.trim() ||
+    extras["Âm thanh"]?.trim() ||
+    extras["Audio"]?.trim() ||
+    "";
+  const audioResolved = audioRaw ? resolveSoundPlayUrl(audioRaw) : "";
   const vocabExtras = {
     "Nghĩa hán việt": extras["Nghĩa hán việt"] ?? extras["HÁN VIỆT"] ?? "",
     "Loại từ": extras["Loại từ"] ?? extras["LOẠI TỪ"] ?? "",
     "Đặt câu": extras["Đặt câu"] ?? extras["ĐẶT CÂU"] ?? extras["VÍ DỤ"] ?? "",
   };
-  return {
+  const base: TemplateFields = {
     Front: card.front,
     Back: card.back,
     Pinyin: card.pinyin ?? "",
-    Audio: resolveAudioUrl(card.audioUrl ?? undefined, "/uploads/audio") ?? "",
+    Audio: audioResolved,
+    "ÂM THANH": audioResolved,
     Section: card.section ?? "",
     "Tiếng Trung": card.front,
     "Nghĩa tiếng Việt": card.back,
     ...extras,
     ...vocabExtras,
   };
+  return applyCardTypeLayout(base, card, cardType);
 }
