@@ -1,7 +1,6 @@
 import { requireAdmin } from "@/lib/api-auth";
 import { parseApkgWithMedia } from "@/lib/apkg-import";
 import { stringifyExtraFields } from "@/lib/fields";
-import { getAudioUploadDir } from "@/lib/paths";
 import type { StudySectionId } from "@/lib/sections";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
@@ -28,7 +27,7 @@ export async function POST(req: Request, context: RouteContext) {
   let notes;
   let mediaImported = 0;
   try {
-    const parsed = await parseApkgWithMedia(buf, getAudioUploadDir());
+    const parsed = await parseApkgWithMedia(buf);
     notes = parsed.notes;
     mediaImported = parsed.mediaImported;
   } catch (e) {

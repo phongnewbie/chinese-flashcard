@@ -16,7 +16,7 @@ function canWriteDir(dir: string): boolean {
 }
 
 function defaultDataDir(): string {
-  return path.join(process.cwd(), "data");
+  return path.join(/* turbopackIgnore: true */ process.cwd(), "data");
 }
 
 /** Thư mục upload — fallback khi /var/data không gắn disk trên Render. */
@@ -55,7 +55,7 @@ export function getSqliteFilePath(): string {
     if (path.isAbsolute(relative)) return relative;
     return path.join(/* turbopackIgnore: true */ process.cwd(), relative);
   }
-  return path.join(getDataDir(), "app.db");
+  return path.join(/* turbopackIgnore: true */ getDataDir(), "app.db");
 }
 
 /** Gốc thư mục upload (ảnh + audio) */
@@ -72,18 +72,18 @@ export function getUploadRoot(): string {
     console.warn(`[paths] UPLOAD_DIR=${configured} không ghi được — dùng data/uploads`);
   }
 
-  const fallback = path.join(getDataDir(), "uploads");
+  const fallback = path.join(/* turbopackIgnore: true */ getDataDir(), "uploads");
   mkdirSync(fallback, { recursive: true });
   resolvedUploadRoot = fallback;
   return fallback;
 }
 
 export function getImageUploadDir(): string {
-  return path.join(getUploadRoot(), "images");
+  return path.join(/* turbopackIgnore: true */ getUploadRoot(), "images");
 }
 
 export function getAudioUploadDir(): string {
-  return path.join(getUploadRoot(), "audio");
+  return path.join(/* turbopackIgnore: true */ getUploadRoot(), "audio");
 }
 
 /** Tạo thư mục data + uploads khi khởi động */

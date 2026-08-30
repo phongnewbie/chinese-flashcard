@@ -6,6 +6,7 @@ import { tmpdir } from "os";
 import path from "path";
 import { firstAudioInText } from "@/lib/anki-sound";
 import { storeAudioReference } from "@/lib/import-cards";
+import { getAudioUploadDir } from "@/lib/paths";
 
 export type ApkgNote = {
   front: string;
@@ -29,7 +30,8 @@ function safeMediaName(filename: string): string {
 }
 
 /** Giải nén file media từ .apkg vào thư mục audio upload. */
-export async function extractApkgMedia(buffer: Buffer, audioDestDir: string): Promise<number> {
+export async function extractApkgMedia(buffer: Buffer): Promise<number> {
+  const audioDestDir = getAudioUploadDir();
   const zip = await JSZip.loadAsync(buffer);
   const mediaEntry = zip.file("media");
   if (!mediaEntry) return 0;
@@ -50,7 +52,7 @@ export async function extractApkgMedia(buffer: Buffer, audioDestDir: string): Pr
     const entry = zip.file(idx);
     if (!entry) continue;
     const fileName = safeMediaName(originalName);
-    const destPath = path.join(audioDestDir, fileName);
+    const destPath = path.join(/* turbopackIgnore: true */ audioDestDir, fileName);
     const data = await entry.async("nodebuffer");
     await writeFile(destPath, data);
     count += 1;
@@ -76,10 +78,10 @@ export async function parseApkgBuffer(buffer: Buffer): Promise<ApkgNote[]> {
   return result.notes;
 }
 
-export async function parseApkgWithMedia(buffer: Buffer, audioDestDir?: string): Promise<ApkgImportResult> {
+export async function parseApkgWithMedia(buffer: Buffer, extractMedia = true): Promise<ApkgImportResult> {
   let mediaImported = 0;
-  if (audioDestDir) {
-    mediaImported = await extractApkgMedia(buffer, audioDestDir);
+  if (extractMedia) {
+    mediaImported = await extractApkgMedia(buffer);
   }
 
   const zip = await JSZip.loadAsync(buffer);
@@ -88,8 +90,8 @@ export async function parseApkgWithMedia(buffer: Buffer, audioDestDir?: string):
   if (!collEntry) throw new Error("Không tìm thấy collection.anki2 trong file apkg");
 
   const dbBuf = await collEntry.async("nodebuffer");
-  const dir = mkdtempSync(path.join(tmpdir(), "apkg-"));
-  const dbPath = path.join(dir, "col.anki2");
+  const dir = mkdtempSync(path.join(/* turbopackIgnore: true */ tmpdir(), "apkg-"));
+  const dbPath = path.join(/* turbopackIgnore: true */ dir, "col.anki2");
   writeFileSync(dbPath, dbBuf);
 
   try {

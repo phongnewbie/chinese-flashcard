@@ -34,7 +34,7 @@ export async function POST(req: Request) {
   const dir = getImageUploadDir();
   await mkdir(dir, { recursive: true });
   const bytes = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(dir, safeName), bytes);
+  await writeFile(path.join(/* turbopackIgnore: true */ dir, safeName), bytes);
 
   const url = uploadUrl(`images/${encodeURIComponent(safeName)}`);
   return NextResponse.json({ url, fileName: safeName });

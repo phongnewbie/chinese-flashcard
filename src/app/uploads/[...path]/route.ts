@@ -25,14 +25,14 @@ function resolveUploadFile(segments: string[]): string | null {
 
   const [kind, ...rest] = segments;
   if (kind === "images" && rest.length > 0) {
-    return path.join(getImageUploadDir(), ...rest.map(decodeURIComponent));
+    return path.join(/* turbopackIgnore: true */ getImageUploadDir(), ...rest.map(decodeURIComponent));
   }
   if (kind === "audio" && rest.length > 0) {
-    return path.join(getAudioUploadDir(), ...rest.map(decodeURIComponent));
+    return path.join(/* turbopackIgnore: true */ getAudioUploadDir(), ...rest.map(decodeURIComponent));
   }
 
   // Legacy: /uploads/images/foo.png tried against upload root directly
-  return path.join(getUploadRoot(), ...segments.map(decodeURIComponent));
+  return path.join(/* turbopackIgnore: true */ getUploadRoot(), ...segments.map(decodeURIComponent));
 }
 
 export async function GET(_req: Request, context: RouteContext) {
@@ -62,7 +62,12 @@ export async function GET(_req: Request, context: RouteContext) {
       },
     });
   } catch {
-    const publicPath = path.join(process.cwd(), "public", "uploads", ...segments.map(decodeURIComponent));
+    const publicPath = path.join(
+      /* turbopackIgnore: true */ process.cwd(),
+      "public",
+      "uploads",
+      ...segments.map(decodeURIComponent),
+    );
     if (existsSync(publicPath)) {
       try {
         const data = await readFile(publicPath);
