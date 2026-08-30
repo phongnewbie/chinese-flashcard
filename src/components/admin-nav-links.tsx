@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { StudentPreviewNav } from "@/components/student-preview-bar";
 
 export function AdminNavLinks() {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -17,11 +16,8 @@ export function AdminNavLinks() {
   if (!isAdmin) return null;
 
   return (
-    <>
-      <StudentPreviewNav />
-      <Link href="/admin" className="text-emerald-700 hover:text-emerald-900 font-medium">
-        Quản trị
-      </Link>
-    </>
+    <Link href="/admin" className="text-emerald-700 hover:text-emerald-900 font-medium">
+      Quản trị
+    </Link>
   );
 }

@@ -267,59 +267,65 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
       </div>
 
       {!revealed && (section !== "grammar" || current.imageUrl) && (
-        <div className="hsk-study-image-wrap">
-          {current.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={current.imageUrl} alt="" className="hsk-study-image" />
-          ) : section !== "grammar" ? (
-            <div className="w-40 h-40 rounded-lg bg-white/40 flex items-center justify-center text-stone-400 text-xs">
-              Chưa có ảnh
-            </div>
-          ) : null}
+        <div className="px-4 pb-2">
+          <div className="hsk-study-image-wrap">
+            {current.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={current.imageUrl} alt="" className="hsk-study-image" />
+            ) : section !== "grammar" ? (
+              <div className="w-32 h-32 rounded-lg bg-white/40 flex items-center justify-center text-stone-400 text-xs">
+                Chưa có ảnh
+              </div>
+            ) : null}
+          </div>
         </div>
       )}
 
       {/* Main content */}
-      <div className="mx-4 mb-4 space-y-3">
-        {!revealed ? (
-          <div className="hsk-question-card rounded-xl p-5 space-y-4">
-            <div className="flex gap-3 items-start">
-              <span className="text-pink-400 text-2xl font-bold leading-none">?</span>
-              <div className={`hsk-hints flex-1 space-y-1 ${section === "grammar" ? "text-xl font-semibold" : "text-base"}`}>
-                {hints.map((h, i) => (
-                  <p key={i}>
-                    {hints.length > 1 ? `${i + 1}. ` : ""}
-                    {h}
-                  </p>
-                ))}
+      <div className="mx-4 mb-4">
+        <div className="study-card-panel rounded-xl border-2 border-[#8fad8f] bg-white p-4 shadow-sm">
+          <div className="study-card-scroll">
+            {!revealed ? (
+              <div className="hsk-question-card rounded-xl p-4 space-y-4 w-full">
+                <div className="flex gap-3 items-start">
+                  <span className="text-pink-400 text-2xl font-bold leading-none">?</span>
+                  <div className={`hsk-hints flex-1 space-y-1 study-secondary-text ${section === "grammar" ? "font-semibold" : ""}`}>
+                    {hints.map((h, i) => (
+                      <p key={i}>
+                        {hints.length > 1 ? `${i + 1}. ` : ""}
+                        {h}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  value={typed}
+                  onChange={(e) => setTyped(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      showAnswer();
+                    }
+                  }}
+                  placeholder={ui.placeholder}
+                  className="hsk-input w-full rounded-lg px-4 py-3 text-lg text-center outline-none"
+                  autoFocus
+                  lang={ui.inputLang}
+                />
               </div>
-            </div>
-            <input
-              type="text"
-              value={typed}
-              onChange={(e) => setTyped(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  showAnswer();
-                }
-              }}
-              placeholder={ui.placeholder}
-              className="hsk-input w-full rounded-lg px-4 py-3 text-lg text-center outline-none"
-              autoFocus
-              lang={ui.inputLang}
-            />
+            ) : (
+              <HskAnswerBack
+                card={current}
+                typed={typed}
+                correct={correct}
+                hints={hints}
+                showHanzii={ui.showHanzii}
+                isGrammar={section === "grammar"}
+              />
+            )}
           </div>
-        ) : (
-          <HskAnswerBack
-            card={current}
-            typed={typed}
-            correct={correct}
-            hints={hints}
-            showHanzii={ui.showHanzii}
-            isGrammar={section === "grammar"}
-          />
-        )}
+        </div>
       </div>
 
       {/* Stats + action */}
@@ -373,10 +379,10 @@ function HskAnswerBack({
   isGrammar?: boolean;
 }) {
   const showWrongCompare = !correct && typed.trim().length > 0;
-  const mainDisplay = isGrammar ? "text-2xl leading-snug px-2" : "text-6xl";
+  const mainDisplay = isGrammar ? "study-secondary-text leading-snug px-2" : "study-primary-text";
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 w-full">
       {/* Pinyin tag + wrong answer comparison */}
       <div className="relative flex flex-col items-center gap-2 pt-1">
         {showWrongCompare && (
@@ -391,22 +397,22 @@ function HskAnswerBack({
       </div>
 
       {/* Image */}
-      <div className="hsk-study-image-wrap min-h-[180px] py-2">
-        {card.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
+      {card.imageUrl ? (
+        <div className="hsk-study-image-wrap min-h-[120px] py-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={card.imageUrl} alt="" className="hsk-study-image bg-white/50" />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {/* Large answer */}
-      <div className="hsk-char-display w-full text-center py-4 px-6 rounded-xl bg-white/90 shadow-sm">
+      <div className="hsk-char-display w-full text-center py-3 px-4 rounded-xl bg-white/90 shadow-sm">
         <span className={`${mainDisplay} font-semibold text-stone-900`}>{card.answer}</span>
       </div>
 
       {/* Definition card */}
-      <div className="hsk-answer-card rounded-xl p-4 space-y-3">
-        <div className="flex flex-wrap items-center gap-2 text-lg">
-          <span className={`font-bold text-stone-900 ${isGrammar ? "text-lg" : "text-2xl"}`}>{card.answer}</span>
+      <div className="hsk-answer-card rounded-xl p-3 space-y-2">
+        <div className="flex flex-wrap items-center gap-2 study-secondary-text">
+          <span className={`font-bold text-stone-900 ${isGrammar ? "" : "study-primary-text"}`}>{card.answer}</span>
           {card.pinyin && (
             <span className="text-stone-600">/{card.pinyin}/</span>
           )}

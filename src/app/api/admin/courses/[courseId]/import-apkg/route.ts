@@ -7,47 +7,51 @@ import { NextResponse } from "next/server";
 
 type RouteContext = { params: Promise<{ courseId: string }> };
 
+const BATCH_SIZE = 500;
+
 export async function POST(req: Request, context: RouteContext) {
-  const { error } = await requireAdmin();
-  if (error) return error;
-
-  const { courseId } = await context.params;
-  const course = await prisma.course.findUnique({ where: { id: courseId } });
-  if (!course) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const form = await req.formData();
-  const file = form.get("file");
-  const section = (course.primarySection as StudySectionId | null) ?? "vocabulary";
-
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "file required" }, { status: 400 });
-  }
-
-  const buf = Buffer.from(await file.arrayBuffer());
-  let notes;
-  let mediaImported = 0;
   try {
-    const parsed = await parseApkgWithMedia(buf);
-    notes = parsed.notes;
-    mediaImported = parsed.mediaImported;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Invalid apkg";
-    return NextResponse.json({ error: msg }, { status: 400 });
-  }
+    const { error } = await requireAdmin();
+    if (error) return error;
 
-  const filtered = notes.filter((n) => n.front && n.back);
-  if (filtered.length === 0) {
-    return NextResponse.json({ error: "Không có note hợp lệ trong apkg" }, { status: 400 });
-  }
+    const { courseId } = await context.params;
+    const course = await prisma.course.findUnique({ where: { id: courseId } });
+    if (!course) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const maxOrder = await prisma.flashcard.aggregate({
-    where: { courseId },
-    _max: { sortOrder: true },
-  });
-  let order = (maxOrder._max.sortOrder ?? 0) + 1;
+    const form = await req.formData();
+    const file = form.get("file");
+    const section = (course.primarySection as StudySectionId | null) ?? "vocabulary";
 
-  await prisma.flashcard.createMany({
-    data: filtered.map((n) => ({
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: "file required" }, { status: 400 });
+    }
+
+    const buf = Buffer.from(await file.arrayBuffer());
+    let notes;
+    let mediaImported = 0;
+    try {
+      const parsed = await parseApkgWithMedia(buf);
+      notes = parsed.notes;
+      mediaImported = parsed.mediaImported;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Invalid apkg";
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+
+    const filtered = notes.filter((n) => n.front && n.back);
+    if (filtered.length === 0) {
+      return NextResponse.json({
+        error: "Không có note hợp lệ trong apkg. Kiểm tra file export từ Anki (Front/Back hoặc Tiếng Trung/Nghĩa).",
+      }, { status: 400 });
+    }
+
+    const maxOrder = await prisma.flashcard.aggregate({
+      where: { courseId },
+      _max: { sortOrder: true },
+    });
+    let order = (maxOrder._max.sortOrder ?? 0) + 1;
+
+    const rows = filtered.map((n) => ({
       courseId,
       section,
       front: n.front,
@@ -59,8 +63,16 @@ export async function POST(req: Request, context: RouteContext) {
         ...(n.tags ? { Tags: n.tags } : {}),
       }),
       sortOrder: order++,
-    })),
-  });
+    }));
 
-  return NextResponse.json({ ok: true, imported: filtered.length, mediaImported });
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      await prisma.flashcard.createMany({ data: rows.slice(i, i + BATCH_SIZE) });
+    }
+
+    return NextResponse.json({ ok: true, imported: filtered.length, mediaImported });
+  } catch (e) {
+    console.error("[import-apkg]", e);
+    const msg = e instanceof Error ? e.message : "Import apkg lỗi";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

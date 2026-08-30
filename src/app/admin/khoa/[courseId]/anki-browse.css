@@ -376,6 +376,65 @@
 .anki-win-deck.child { padding-left: 20px; }
 .anki-win-deck.grandchild { padding-left: 32px; }
 
+.anki-deck-tree-block {
+  margin-top: 2px;
+  padding-bottom: 6px;
+}
+
+.anki-deck-tree-children {
+  display: block;
+}
+
+.anki-deck-tree-loading,
+.anki-deck-tree-empty {
+  font-size: 10px;
+  color: #888;
+  padding: 2px 4px 2px 40px;
+}
+
+.anki-win-deck.depth-0 { padding-left: 4px; }
+.anki-win-deck.depth-1 { padding-left: 16px; }
+.anki-win-deck.depth-2 { padding-left: 28px; }
+.anki-win-deck.depth-3 { padding-left: 40px; }
+
+.anki-win-deck.depth-0 .name {
+  font-weight: 600;
+}
+
+.anki-win-deck.leaf .chev {
+  visibility: hidden;
+}
+
+.deck-icon-root,
+.deck-icon-current,
+.deck-icon-folder,
+.deck-icon-leaf {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-right: 2px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px 14px;
+}
+
+.deck-icon-root {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2' y='4' width='10' height='8' fill='%23ddd' stroke='%23666' stroke-width='1'/%3E%3Crect x='4' y='2' width='10' height='8' fill='%23fff' stroke='%23666' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+.deck-icon-current {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2' y='3' width='11' height='10' rx='1' fill='%23e8e8e8' stroke='%23555' stroke-width='1'/%3E%3Crect x='4' y='5' width='7' height='2' fill='%23999'/%3E%3Ccircle cx='12' cy='11' r='3' fill='%23fff' stroke='%23555' stroke-width='1'/%3E%3Cpath d='M12 9.5v2l1.2.7' stroke='%23555' fill='none'/%3E%3C/svg%3E");
+}
+
+.deck-icon-folder {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1 4h5l1 2h8v7H1z' fill='%23f4d03f' stroke='%238a6d00' stroke-width='1'/%3E%3Cpath d='M1 4h6v2H1z' fill='%23ffe082'/%3E%3C/svg%3E");
+}
+
+.deck-icon-leaf {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='3' width='10' height='10' rx='1' fill='%23fff' stroke='%23666' stroke-width='1'/%3E%3Crect x='5' y='5' width='6' height='1.5' fill='%23999'/%3E%3Crect x='5' y='8' width='4' height='1.5' fill='%23bbb'/%3E%3C/svg%3E");
+}
+
 /* ── Center list pane ── */
 .anki-win-list-pane {
   flex: 0 0 38%;

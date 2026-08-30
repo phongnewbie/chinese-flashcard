@@ -182,14 +182,41 @@ body {
 }
 
 /* Thẻ học — kích thước cố định, nội dung dài thì cuộn */
-.anki-card-shell {
+.anki-card-shell,
+.study-card-panel {
   position: relative;
   display: flex;
   flex-direction: column;
-  height: min(360px, 52vh);
-  min-height: 280px;
+  width: 100%;
+  height: 420px;
+  min-height: 360px;
   max-height: 420px;
   box-sizing: border-box;
+}
+
+.study-card-scroll {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  -webkit-overflow-scrolling: touch;
+}
+
+.study-primary-text {
+  font-size: clamp(1.75rem, 5vw, 2.5rem) !important;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.study-secondary-text {
+  font-size: clamp(1.125rem, 3.5vw, 1.5rem) !important;
+  line-height: 1.45;
+  word-break: break-word;
 }
 
 .anki-card-content {
@@ -348,12 +375,13 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 200px;
-  padding: 0.75rem 1.5rem;
+  min-height: 160px;
+  max-height: 200px;
+  padding: 0.5rem 1.5rem;
 }
 .hsk-study-image {
-  max-height: min(320px, 50vh);
-  max-width: min(100%, 560px);
+  max-height: min(200px, 32vh);
+  max-width: min(100%, 480px);
   width: auto;
   height: auto;
   object-fit: contain;

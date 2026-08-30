@@ -5,7 +5,6 @@ import { prisma } from "@/lib/db";
 import { canAccessCourse } from "@/lib/hsk-enrollment";
 import { StudyClient } from "./study-client";
 import { isAdminEmail } from "@/lib/admin";
-import { effectiveAdmin, readStudentPreviewCookie } from "@/lib/student-preview";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
@@ -17,8 +16,6 @@ export default async function StudyPage({ params }: PageProps) {
 
   const { courseId } = await params;
   const rawAdmin = session.user.email ? isAdminEmail(session.user.email) : false;
-  const studentPreview = await readStudentPreviewCookie();
-  const isAdminUi = effectiveAdmin(rawAdmin, studentPreview);
 
   const course = await prisma.course.findFirst({
     where: rawAdmin ? { id: courseId } : { id: courseId, published: true },
@@ -28,7 +25,6 @@ export default async function StudyPage({ params }: PageProps) {
 
   const courseAllowed =
     rawAdmin ||
-    isAdminUi ||
     (await canAccessCourse(session.user.id, session.user.email, courseId));
 
   return (

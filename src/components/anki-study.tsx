@@ -148,7 +148,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
     if (!res.ok) {
       setLoadError(
         data.error === "Forbidden"
-          ? "Không có quyền mở bộ thẻ này. Nếu đang bật “Chế độ học viên”, thử tắt ở đầu trang Bộ thẻ."
+          ? "Không có quyền mở bộ thẻ này. Liên hệ admin nếu bạn chưa được gán cấp HSK."
           : data.error === "locked"
             ? "Tài khoản đang bị khóa học thử."
             : typeof data.error === "string"

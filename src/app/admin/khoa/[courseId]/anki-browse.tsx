@@ -15,6 +15,7 @@ import {
 } from "@/lib/anki-note-fields";
 import { requiredFieldLabels, getSectionPreset } from "@/lib/section-presets";
 import { STUDY_SECTIONS, sectionLabel, type StudySectionId } from "@/lib/sections";
+import { AnkiBrowseDeckTree } from "./anki-browse-deck-tree";
 import { AnkiFieldsDialog } from "./anki-fields-dialog";
 import { AnkiImageField, fieldImagePreview } from "./anki-image-field";
 import { AnkiRichField } from "./anki-rich-field";
@@ -30,6 +31,7 @@ import "./anki-browse.css";
 type Props = {
   courseId: string;
   courseTitle: string;
+  hskLevel?: string | null;
   defaultSection?: StudySectionId;
   fieldDefsRaw: string | null;
   onMsg: (msg: string) => void;
@@ -43,6 +45,7 @@ type Props = {
 export function AnkiBrowse({
   courseId,
   courseTitle,
+  hskLevel = null,
   defaultSection = "vocabulary",
   fieldDefsRaw,
   onMsg,
@@ -603,75 +606,14 @@ export function AnkiBrowse({
           )}
 
           {showDeckTree && (
-            <>
-          <h4>Decks</h4>
-          <button
-            type="button"
-            className={`anki-win-deck anki-win-deck-root ${!sectionFilter && !activeSubdeck && !search.trim() ? "sel" : ""}`}
-            onClick={() => {
-              setExpanded((p) => ({ ...p, root: !p.root }));
-              showAllInCourse();
-            }}
-          >
-            <span className="chev">{expanded.root ? "▾" : "▸"}</span>
-            <span className="deck-icon" aria-hidden>📚</span>
-            <span className="name">{courseTitle}</span>
-            <span className="anki-deck-count-badge">{totalInCourse}</span>
-          </button>
-          {expanded.root &&
-            STUDY_SECTIONS.filter((s) => sectionMatchesFilter(s.id)).map((s) => {
-              const preset = getSectionPreset(s.id);
-              const subs = subdecksBySection[s.id] ?? [];
-              const sectionOpen = expandedSections[s.id] ?? false;
-              const sectionCount = bySection[s.id] ?? 0;
-              const sectionSelected = sectionFilter === s.id && !activeSubdeck;
-              const subdeckSelected = (sub: string) =>
-                sectionFilter === s.id && activeSubdeck === sub;
-
-              return (
-                <div key={s.id} className="anki-deck-branch">
-                  <button
-                    type="button"
-                    className={`anki-win-deck child ${sectionSelected ? "sel" : ""}`}
-                    onClick={() => pickSectionRow(s.id)}
-                  >
-                    <span
-                      className="chev chev-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (subs.length > 0) {
-                          setExpandedSections((p) => ({ ...p, [s.id]: !sectionOpen }));
-                        }
-                      }}
-                    >
-                      {subs.length > 0 ? (sectionOpen ? "▾" : "▸") : ""}
-                    </span>
-                    <span className="deck-icon" aria-hidden>📁</span>
-                    <span className="name" title={preset.noteTypeLabel}>
-                      {preset.noteTypeLabel}
-                    </span>
-                    <span className="anki-deck-count-badge">{sectionCount}</span>
-                  </button>
-                  {sectionOpen &&
-                    subs.filter(subdeckMatchesFilter).map((sub) => (
-                      <button
-                        key={`${s.id}:${sub}`}
-                        type="button"
-                        className={`anki-win-deck grandchild ${subdeckSelected(sub) ? "sel" : ""}`}
-                        onClick={() => pickSubdeck(s.id, sub)}
-                      >
-                        <span className="chev" />
-                        <span className="deck-icon deck-icon-leaf" aria-hidden>🔖</span>
-                        <span className="name">{sub}</span>
-                        <span className="anki-deck-count-badge">
-                          {bySubdeck[`${s.id}:${sub}`] ?? ""}
-                        </span>
-                      </button>
-                    ))}
-                </div>
-              );
-            })}
-            </>
+            <AnkiBrowseDeckTree
+              courseId={courseId}
+              courseTitle={courseTitle}
+              hskLevel={hskLevel}
+              primarySection={primarySection}
+              sidebarFilter={sidebarFilter}
+              onShowAllInCourse={showAllInCourse}
+            />
           )}
           </div>
         </aside>

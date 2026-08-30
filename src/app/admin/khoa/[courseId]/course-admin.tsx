@@ -19,6 +19,7 @@ type Course = {
   id: string;
   title: string;
   description: string | null;
+  hskLevel: string | null;
   primarySection: string | null;
   frontTemplate: string | null;
   backTemplate: string | null;
@@ -152,6 +153,7 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
         <AnkiBrowse
           courseId={courseId}
           courseTitle={course.title}
+          hskLevel={course.hskLevel}
           defaultSection={(course.primarySection as StudySectionId | null) ?? "vocabulary"}
           fieldDefsRaw={course.fieldDefs}
           refreshToken={browseRefresh}
@@ -267,21 +269,30 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
 
             <hr className="my-6" />
             <h2 className="font-semibold">Import Anki (.apkg)</h2>
-            <p className="text-sm text-stone-600">Import note từ deck Anki (field 1 = mặt trước, field 2 = mặt sau).</p>
+            <p className="text-sm text-stone-600">
+              Import note từ deck Anki (hỗ trợ Anki 2.1.50+). Tự nhận trường Front/Back hoặc Tiếng Trung/Nghĩa tiếng Việt.
+            </p>
             <ImportFileButton
               label="Import file .apkg"
               accept=".apkg"
               onFile={async (f) => {
-                const fd = new FormData();
-                fd.set("file", f);
-                fd.set("section", "vocabulary");
-                const res = await fetch(`/api/admin/courses/${courseId}/import-apkg`, { method: "POST", body: fd });
-                const data = await res.json();
-                if (res.ok) {
-                  setMsg(`Đã import ${data.imported} note từ apkg`);
-                  reload();
-                  setTab("browse");
-                } else setMsg(data.error ?? "Import apkg lỗi");
+                setMsg("Đang import apkg...");
+                try {
+                  const fd = new FormData();
+                  fd.set("file", f);
+                  const res = await fetch(`/api/admin/courses/${courseId}/import-apkg`, { method: "POST", body: fd });
+                  const data = await res.json().catch(() => ({}));
+                  if (res.ok) {
+                    const mediaNote = data.mediaImported ? ` · ${data.mediaImported} file âm thanh` : "";
+                    setMsg(`Đã import ${data.imported} note từ apkg${mediaNote}`);
+                    reload();
+                    setTab("browse");
+                  } else {
+                    setMsg(data.error ?? "Import apkg lỗi");
+                  }
+                } catch {
+                  setMsg("Import apkg lỗi — kiểm tra kết nối mạng");
+                }
               }}
             />
 

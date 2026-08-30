@@ -35,8 +35,6 @@ type LevelRow = {
 
 type OverviewData = {
   isAdmin: boolean;
-  isAdminAccount?: boolean;
-  studentPreview?: boolean;
   enrolledLevels?: string[];
   hskRestricted?: boolean;
   levels: LevelRow[];
@@ -96,7 +94,7 @@ export function AnkiMainDecks() {
     setExpandedCats((p) => ({ ...p, [key]: !p[key] }));
 
   const openStudy = (deckId: string, levelLocked?: boolean) => {
-    const adminAccount = data?.isAdminAccount || data?.isAdmin || access?.isAdmin;
+    const adminAccount = data?.isAdmin || access?.isAdmin;
     if (!adminAccount && !canUserStudy(access)) return;
     if (levelLocked && !adminAccount) return;
     router.push(`/hoc/${deckId}`);
@@ -176,9 +174,8 @@ export function AnkiMainDecks() {
   }
 
   const isAdmin = data.isAdmin;
-  const isAdminAccount = data.isAdminAccount ?? isAdmin ?? access?.isAdmin ?? false;
-  const studyAllowed = isAdminAccount || canUserStudy(access);
-  const locked = !isAdminAccount && isAccessLocked(access);
+  const studyAllowed = isAdmin || canUserStudy(access);
+  const locked = !isAdmin && isAccessLocked(access);
 
   return (
     <div className="anki-home">
@@ -288,7 +285,7 @@ export function AnkiMainDecks() {
                   key={level.id}
                   level={level}
                   levelOpen={levelOpen}
-                  levelLocked={!!level.locked && !isAdminAccount}
+                  levelLocked={!!level.locked && !isAdmin}
                   expandedCats={expandedCats}
                   isAdmin={isAdmin}
                   studyAllowed={studyAllowed}
