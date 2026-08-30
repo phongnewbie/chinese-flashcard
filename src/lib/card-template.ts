@@ -1,5 +1,5 @@
 import { parseExtraFields } from "@/lib/fields";
-import { resolveSoundPlayUrl, isPlayableAudio } from "@/lib/anki-sound";
+import { resolveSoundPlayUrl, isPlayableAudio, renderTextWithSound } from "@/lib/anki-sound";
 import type { CardTypeDef } from "@/lib/card-types";
 import { requiredFieldLabels } from "@/lib/section-presets";
 import { resolveImageSrc } from "@/lib/paste-image";
