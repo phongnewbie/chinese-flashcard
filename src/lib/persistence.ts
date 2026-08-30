@@ -21,7 +21,7 @@ export type PersistenceInfo = {
 
 function dirWritable(dir: string): boolean {
   try {
-    accessSync(dir, constants.W_OK);
+    accessSync(/* turbopackIgnore: true */ dir, constants.W_OK);
     return true;
   } catch {
     return false;

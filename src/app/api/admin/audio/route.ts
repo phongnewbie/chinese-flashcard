@@ -23,9 +23,9 @@ export async function POST(req: Request) {
 
   const safeName = file.name.replace(/[^\w.\-()+\u4e00-\u9fff]/g, "_");
   const dir = getAudioUploadDir();
-  await mkdir(dir, { recursive: true });
+  await mkdir(/* turbopackIgnore: true */ dir, { recursive: true });
   const bytes = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(/* turbopackIgnore: true */ dir, safeName), bytes);
+  await writeFile(/* turbopackIgnore: true */ path.join(/* turbopackIgnore: true */ dir, safeName), bytes);
 
   const url = uploadUrl(`audio/${encodeURIComponent(safeName)}`);
   return NextResponse.json({ url, fileName: safeName, soundTag: toSoundTag(safeName) });
@@ -37,8 +37,8 @@ export async function GET() {
 
   const { readdir } = await import("fs/promises");
   const dir = getAudioUploadDir();
-  await mkdir(dir, { recursive: true });
-  const files = await readdir(dir);
+  await mkdir(/* turbopackIgnore: true */ dir, { recursive: true });
+  const files = await readdir(/* turbopackIgnore: true */ dir);
   return NextResponse.json(
     files.map((f) => ({
       name: f,

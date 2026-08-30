@@ -7,8 +7,8 @@ let resolvedUploadRoot: string | null = null;
 
 function canWriteDir(dir: string): boolean {
   try {
-    mkdirSync(dir, { recursive: true });
-    accessSync(dir, constants.W_OK);
+    mkdirSync(/* turbopackIgnore: true */ dir, { recursive: true });
+    accessSync(/* turbopackIgnore: true */ dir, constants.W_OK);
     return true;
   } catch {
     return false;
@@ -34,7 +34,7 @@ export function getDataDir(): string {
   }
 
   const fallback = defaultDataDir();
-  mkdirSync(fallback, { recursive: true });
+  mkdirSync(/* turbopackIgnore: true */ fallback, { recursive: true });
   resolvedDataDir = fallback;
   return fallback;
 }
@@ -73,7 +73,7 @@ export function getUploadRoot(): string {
   }
 
   const fallback = path.join(/* turbopackIgnore: true */ getDataDir(), "uploads");
-  mkdirSync(fallback, { recursive: true });
+  mkdirSync(/* turbopackIgnore: true */ fallback, { recursive: true });
   resolvedUploadRoot = fallback;
   return fallback;
 }
@@ -89,9 +89,9 @@ export function getAudioUploadDir(): string {
 /** Tạo thư mục data + uploads khi khởi động */
 export async function ensureDataDirs(): Promise<void> {
   const dataDir = getDataDir();
-  await mkdir(dataDir, { recursive: true });
-  await mkdir(getImageUploadDir(), { recursive: true });
-  await mkdir(getAudioUploadDir(), { recursive: true });
+  await mkdir(/* turbopackIgnore: true */ dataDir, { recursive: true });
+  await mkdir(/* turbopackIgnore: true */ getImageUploadDir(), { recursive: true });
+  await mkdir(/* turbopackIgnore: true */ getAudioUploadDir(), { recursive: true });
 }
 
 export function uploadUrl(subpath: string): string {

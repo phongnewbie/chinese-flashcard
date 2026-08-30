@@ -52,7 +52,7 @@ export async function GET(_req: Request, context: RouteContext) {
   }
 
   try {
-    const data = await readFile(filePath);
+    const data = await readFile(/* turbopackIgnore: true */ filePath);
     const ext = path.extname(filePath).toLowerCase();
     const type = MIME[ext] ?? "application/octet-stream";
     return new NextResponse(data, {
@@ -68,9 +68,9 @@ export async function GET(_req: Request, context: RouteContext) {
       "uploads",
       ...segments.map(decodeURIComponent),
     );
-    if (existsSync(publicPath)) {
+    if (existsSync(/* turbopackIgnore: true */ publicPath)) {
       try {
-        const data = await readFile(publicPath);
+        const data = await readFile(/* turbopackIgnore: true */ publicPath);
         const ext = path.extname(publicPath).toLowerCase();
         const type = MIME[ext] ?? "application/octet-stream";
         return new NextResponse(data, {

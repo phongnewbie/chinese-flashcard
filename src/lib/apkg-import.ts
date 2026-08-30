@@ -44,7 +44,7 @@ export async function extractApkgMedia(buffer: Buffer): Promise<number> {
     return 0;
   }
 
-  await mkdir(audioDestDir, { recursive: true });
+  await mkdir(/* turbopackIgnore: true */ audioDestDir, { recursive: true });
   let count = 0;
 
   for (const [idx, originalName] of Object.entries(mapping)) {
@@ -54,7 +54,7 @@ export async function extractApkgMedia(buffer: Buffer): Promise<number> {
     const fileName = safeMediaName(originalName);
     const destPath = path.join(/* turbopackIgnore: true */ audioDestDir, fileName);
     const data = await entry.async("nodebuffer");
-    await writeFile(destPath, data);
+    await writeFile(/* turbopackIgnore: true */ destPath, data);
     count += 1;
   }
 
@@ -90,9 +90,9 @@ export async function parseApkgWithMedia(buffer: Buffer, extractMedia = true): P
   if (!collEntry) throw new Error("Không tìm thấy collection.anki2 trong file apkg");
 
   const dbBuf = await collEntry.async("nodebuffer");
-  const dir = mkdtempSync(path.join(/* turbopackIgnore: true */ tmpdir(), "apkg-"));
+  const dir = mkdtempSync(/* turbopackIgnore: true */ path.join(/* turbopackIgnore: true */ tmpdir(), "apkg-"));
   const dbPath = path.join(/* turbopackIgnore: true */ dir, "col.anki2");
-  writeFileSync(dbPath, dbBuf);
+  writeFileSync(/* turbopackIgnore: true */ dbPath, dbBuf);
 
   try {
     const db = new Database(dbPath, { readonly: true });
@@ -122,6 +122,6 @@ export async function parseApkgWithMedia(buffer: Buffer, extractMedia = true): P
 
     return { notes, mediaImported };
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(/* turbopackIgnore: true */ dir, { recursive: true, force: true });
   }
 }
