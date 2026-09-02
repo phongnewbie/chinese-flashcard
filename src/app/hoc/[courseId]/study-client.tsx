@@ -77,7 +77,7 @@ export function StudyClient({ courseId, title, primarySection, hskLevel }: Props
 
       {activeSection === "sentence_order" ? (
         <SentenceOrderStudy courseId={courseId} mode={mode} onModeChange={setMode} />
-      ) : activeSection === "vocabulary" || activeSection === "grammar" || activeSection === "common" ? (
+      ) : activeSection === "vocabulary" ? (
         <HskVocabStudy
           key={`${activeSection}-${mode}`}
           courseId={courseId}

@@ -67,13 +67,16 @@ function escapeHtml(text: string): string {
 }
 
 function isImageFieldKey(key: string): boolean {
-  const k = key.toLowerCase();
+  const k = key.toLowerCase().trim();
   return (
     k === "ảnh" ||
+    k === "anh" ||
     k === "image" ||
-    k.includes("hình ảnh") ||
-    k.includes("hinh anh") ||
-    (k.includes("anh") && !k.includes("thanh") && !k.includes("han"))
+    k === "photo" ||
+    k === "picture" ||
+    k === "hình ảnh" ||
+    k === "hinh anh" ||
+    k === "ảnh thẻ"
   );
 }
 
@@ -81,19 +84,19 @@ function isImageFilename(val: string): boolean {
   return /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(val) && !/<img/i.test(val);
 }
 
-/** Chỉ giữ thẻ img trỏ uploads hoặc https */
+/** Giữ thẻ img an toàn */
 function sanitizeEmbeddedImages(html: string): string {
   let out = html.replace(
     /<div\b[^>]*class=["'][^"']*field-img-wrap[^"']*["'][^>]*style=["']text-align:([^"']+)["'][^>]*>([\s\S]*?)<\/div>/gi,
     (_full, align: string, inner: string) => {
       const img = inner.match(/<img\b[^>]*\ssrc=["']([^"']+)["']/i);
-      if (!img?.[1] || !/^(\/uploads\/images\/|https?:\/\/)/i.test(img[1].trim())) return "";
-      return `<div class="field-img-wrap" style="text-align:${escapeHtml(align.trim())}">${sanitizeEmbeddedImages(inner)}</div>`;
+      if (!img?.[1] || !/^(\/|https?:\/\/|data:)/i.test(img[1].trim())) return "";
+      return `<div class="field-img-wrap align-${escapeHtml(align.trim())}" style="text-align:${escapeHtml(align.trim())}">${sanitizeEmbeddedImages(inner)}</div>`;
     },
   );
   out = out.replace(/<img\b[^>]*\ssrc=["']([^"']+)["'][^>]*\/?>/gi, (_full, src: string) => {
-    if (!/^(\/uploads\/images\/|https?:\/\/)/i.test(src.trim())) return "";
-    return `<img src="${escapeHtml(src.trim())}" alt="" class="field-img" style="max-width:100%;height:auto;" />`;
+    if (!/^(\/|https?:\/\/|data:)/i.test(src.trim())) return "";
+    return `<img src="${escapeHtml(src.trim())}" alt="" class="field-img" />`;
   });
   return out;
 }
@@ -103,15 +106,22 @@ function isAudioFieldKey(key: string): boolean {
   return k === "audio" || k === "âm thanh" || k === "am thanh" || k.includes("am thanh");
 }
 
-function fieldToHtml(key: string, val: string, side: "front" | "back"): string {
+function fieldToHtml(key: string, val: string, side: "front" | "back", fieldsContext?: TemplateFields): string {
   if (!val) return "";
   const k = key.toLowerCase();
   const trimmed = val.trim();
+  const chineseText =
+    fieldsContext?.["Tiếng Trung"] ||
+    fieldsContext?.["CẤU TRÚC"] ||
+    fieldsContext?.["Front"] ||
+    fieldsContext?.["CÂU ĐÚNG"] ||
+    "";
 
   if (isAudioFieldKey(k) || isPlayableAudio(trimmed)) {
     if (isPlayableAudio(trimmed)) {
       const url = resolveSoundPlayUrl(trimmed);
-      return `<button type="button" class="audio-btn" data-audio="${escapeHtml(url)}" title="Nghe">🔊 Nghe</button>`;
+      const textAttr = chineseText ? ` data-text="${escapeHtml(chineseText)}"` : "";
+      return `<button type="button" class="audio-btn" data-audio="${escapeHtml(url)}"${textAttr} title="Nghe">🔊 Nghe</button>`;
     }
     if (/\[sound:/i.test(val) || /https?:\/\//i.test(val)) return renderTextWithSound(val);
   }
@@ -122,9 +132,9 @@ function fieldToHtml(key: string, val: string, side: "front" | "back"): string {
   if (/\[sound:/i.test(val) || /https?:\/\//i.test(val)) {
     return renderTextWithSound(val);
   }
-  if (isImageFieldKey(k) && isImageFilename(val)) {
-    const src = escapeHtml(resolveImageSrc(val));
-    return `<img src="${src}" alt="" class="field-img" style="max-width:100%;height:auto;" />`;
+  if (isImageFieldKey(k) || isImageFilename(trimmed)) {
+    const src = escapeHtml(resolveImageSrc(trimmed));
+    return `<div class="card-image"><img src="${src}" alt="" class="field-img" /></div>`;
   }
   return escapeHtml(val);
 }
@@ -134,7 +144,7 @@ function appendMissingAudioFields(html: string, fields: TemplateFields, side: "f
   for (const [key, val] of Object.entries(fields)) {
     if (!val?.trim()) continue;
     if (!isPlayableAudio(val.trim()) && !/\[sound:/i.test(val)) continue;
-    const rendered = fieldToHtml(key, val, side);
+    const rendered = fieldToHtml(key, val, side, fields);
     if (rendered.includes("data-audio")) {
       return `${html}<div class="card-audio">${rendered}</div>`;
     }
@@ -143,14 +153,14 @@ function appendMissingAudioFields(html: string, fields: TemplateFields, side: "f
 }
 
 function appendMissingImageFields(html: string, fields: TemplateFields, side: "front" | "back"): string {
-  if (/field-img/i.test(html)) return html;
+  if (/field-img|card-image/i.test(html)) return html;
   const blocks: string[] = [];
   for (const [key, val] of Object.entries(fields)) {
     if (!val?.trim()) continue;
-    if (!isImageFieldKey(key) && !/<img\b/i.test(val)) continue;
-    const rendered = fieldToHtml(key, val, side);
-    if (rendered && /field-img|<img\b/i.test(rendered)) {
-      blocks.push(`<div class="card-image">${rendered}</div>`);
+    if (!isImageFieldKey(key) && !/<img\b/i.test(val) && !isImageFilename(val.trim())) continue;
+    const rendered = fieldToHtml(key, val, side, fields);
+    if (rendered && (rendered.includes("field-img") || rendered.includes("<img"))) {
+      blocks.push(rendered.includes("card-image") ? rendered : `<div class="card-image">${rendered}</div>`);
     }
   }
   if (!blocks.length) return html;
@@ -172,7 +182,7 @@ export function renderCardTemplate(
   });
 
   for (const [key, val] of Object.entries(fields)) {
-    const rendered = fieldToHtml(key, val, side);
+    const rendered = fieldToHtml(key, val, side, fields);
     html = html.replaceAll(`{{${key}}}`, rendered);
   }
 
@@ -278,15 +288,51 @@ export function toCardFields(
     "Loại từ": extras["Loại từ"] ?? extras["LOẠI TỪ"] ?? "",
     "Đặt câu": extras["Đặt câu"] ?? extras["ĐẶT CÂU"] ?? extras["VÍ DỤ"] ?? "",
   };
+  const rawImage =
+    extras["ẢNH"] ??
+    extras["Ảnh"] ??
+    extras["ảnh"] ??
+    extras["HÌNH ẢNH"] ??
+    extras["Hình ảnh"] ??
+    extras["hinh anh"] ??
+    extras["IMAGE"] ??
+    extras["Image"] ??
+    extras["image"] ??
+    extras["Photo"] ??
+    extras["PHOTO"] ??
+    "";
   const base: TemplateFields = {
     Front: card.front,
     Back: card.back,
     Pinyin: card.pinyin ?? "",
+    PINYIN: card.pinyin ?? "",
     Audio: audioResolved,
     "ÂM THANH": audioResolved,
     Section: card.section ?? "",
     "Tiếng Trung": card.front,
     "Nghĩa tiếng Việt": card.back,
+    "CHỮ HÁN": card.front,
+    "NGHĨA TIẾNG VIỆT": card.back,
+    "CẤU TRÚC": extras["CẤU TRÚC"] ?? extras["VÍ DỤ"] ?? "",
+    "CÁCH DÙNG": extras["CÁCH DÙNG"] ?? extras["GHI CHÚ"] ?? "",
+    "ĐIỂM NGỮ PHÁP": extras["ĐIỂM NGỮ PHÁP"] ?? "",
+    MÃ: extras["MÃ"] ?? "",
+    "GIẢI THÍCH": extras["GIẢI THÍCH"] ?? card.back,
+    "TÌNH HUỐNG": card.front,
+    "CÂU TRẢ LỜI": card.back,
+    "MẢNH CÂU": card.front,
+    "CÂU ĐÚNG": card.back,
+    ẢNH: rawImage,
+    Ảnh: rawImage,
+    ảnh: rawImage,
+    "Hình ảnh": rawImage,
+    "HÌNH ẢNH": rawImage,
+    "hinh anh": rawImage,
+    Image: rawImage,
+    IMAGE: rawImage,
+    image: rawImage,
+    Photo: rawImage,
+    PHOTO: rawImage,
     ...extras,
     ...vocabExtras,
   };

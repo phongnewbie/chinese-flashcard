@@ -1,4 +1,5 @@
 import { parseExtraFields } from "@/lib/fields";
+import { resolveSoundPlayUrl } from "@/lib/anki-sound";
 import { normHeader } from "@/lib/import-cards";
 
 export type HskCardView = {
@@ -29,18 +30,21 @@ export type ExampleBlock = {
 };
 
 const LEVEL_KEYS = ["hsk", "cap do", "cấp độ", "level", "cap"];
-const IMAGE_KEYS = ["hinh anh", "hình ảnh", "image", "anh", "photo", "picture"];
-const EXAMPLE_KEYS = ["vi du", "ví dụ", "example", "cau vi du", "câu ví dụ", "vd", "cau mau", "câu mẫu"];
+const IMAGE_KEYS = ["anh", "hinh anh", "hình ảnh", "image", "photo", "picture", "anh the", "ảnh thẻ", "card image"];
+const EXAMPLE_KEYS = ["vi du", "ví dụ", "example", "cau vi du", "câu ví dụ", "vd", "cau mau", "câu mẫu", "dat cau", "đặt câu"];
 const MNEMONIC_KEYS = [
   "cach nho", "cách nhớ", "mnemonic", "bo thu", "bộ thủ", "etymology",
   "giai thich tu", "giải thích từ", "cach ghi nho", "cach ghi nhớ", "ghi nho", "ghi nhớ",
 ];
 const EXAMPLE_AUDIO_KEYS = ["am thanh vi du", "âm thanh ví dụ", "example audio", "audio vi du"];
+const AUDIO_KEYS = ["am thanh", "âm thanh", "audio", "mp3"];
 
 function pickExtra(extras: Record<string, string>, keys: string[]): string {
   for (const [rawKey, val] of Object.entries(extras)) {
+    if (!val?.trim()) continue;
     const nk = normHeader(rawKey);
-    if (keys.some((h) => nk === h || nk.includes(h) || h.includes(nk))) return val;
+    // Exact or safe match, ignore 'tieng anh' / 'anh van' for image keys
+    if (keys.some((k) => nk === k || (k.length >= 6 && nk.includes(k)))) return val;
   }
   return "";
 }
@@ -73,11 +77,31 @@ export function hanziiSearchUrl(character: string): string {
   return `https://hanzii.net/vi/search?q=${q}`;
 }
 
+export function extractImageUrl(value: string | undefined): string {
+  if (!value || !value.trim()) return "";
+  const trimmed = value.trim();
+  // 1. Tag <img src="...">
+  const imgMatch = trimmed.match(/<img\b[^>]*\ssrc=["']([^"']+)["']/i);
+  if (imgMatch?.[1]) {
+    const src = imgMatch[1].trim();
+    if (/^(https?:\/\/|\/|data:)/i.test(src)) return src;
+    const name = src.replace(/^.*[\\/]/, "");
+    return `/uploads/images/${encodeURIComponent(name)}`;
+  }
+  // 2. URL hoặc đường dẫn trực tiếp
+  if (/^(https?:\/\/|\/|data:)/i.test(trimmed)) {
+    return trimmed;
+  }
+  // 3. Tên file ảnh
+  if (/\.(jpg|jpeg|png|gif|webp|svg|avif)(\?|#|$)/i.test(trimmed)) {
+    const name = trimmed.replace(/^.*[\\/]/, "");
+    return `/uploads/images/${encodeURIComponent(name)}`;
+  }
+  return "";
+}
+
 export function resolveMediaUrl(value: string | undefined, base: string): string {
-  if (!value) return "";
-  if (/^https?:\/\//i.test(value) || value.startsWith("/")) return value;
-  const name = value.replace(/^.*[\\/]/, "");
-  return `${base}/${encodeURIComponent(name)}`;
+  return extractImageUrl(value) || "";
 }
 
 export function toHskCardView(card: {
@@ -93,14 +117,30 @@ export function toHskCardView(card: {
 }): HskCardView {
   const extras = parseExtraFields(card.extraFields);
   const level = pickExtra(extras, LEVEL_KEYS) || "HSK";
-  const rawImage = pickExtra(extras, IMAGE_KEYS);
-  const imageUrl = resolveMediaUrl(rawImage, "/uploads/images");
+  
+  let rawImage = pickExtra(extras, IMAGE_KEYS);
+  let imageUrl = extractImageUrl(rawImage);
+  if (!imageUrl) {
+    for (const [k, val] of Object.entries(extras)) {
+      if (val && (val.includes("<img") || /\.(jpg|jpeg|png|gif|webp|svg|avif)(\?|#|$)/i.test(val))) {
+        const found = extractImageUrl(val);
+        if (found) {
+          imageUrl = found;
+          break;
+        }
+      }
+    }
+  }
+  if (!imageUrl) {
+    imageUrl = extractImageUrl(card.front) || extractImageUrl(card.back);
+  }
 
   const rawExample = pickExtra(extras, EXAMPLE_KEYS);
   const example = rawExample ? parseExample(rawExample) : null;
   const mnemonic = pickExtra(extras, MNEMONIC_KEYS);
   const rawExAudio = pickExtra(extras, EXAMPLE_AUDIO_KEYS);
-  const exampleAudioUrl = resolveMediaUrl(rawExAudio, "/uploads/audio");
+  const rawMainAudio = card.audioUrl?.trim() || pickExtra(extras, AUDIO_KEYS) || "";
+  const exampleAudioUrl = rawExAudio ? resolveSoundPlayUrl(rawExAudio) : "";
 
   const cardType = card.cardType ?? "viet_trung";
   let prompt = card.back.trim();
@@ -123,7 +163,7 @@ export function toHskCardView(card: {
     pinyin: card.pinyin?.trim() ?? "",
     imageUrl,
     hskLevel: level.toUpperCase().replace(/\s+/g, ""),
-    audioUrl: card.audioUrl ?? "",
+    audioUrl: rawMainAudio ? resolveSoundPlayUrl(rawMainAudio) : "",
     example,
     mnemonic,
     exampleAudioUrl,

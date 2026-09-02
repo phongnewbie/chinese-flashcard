@@ -14,6 +14,7 @@ import {
   type DeckStats,
 } from "@/components/anki-deck-overview";
 import { previewIntervals } from "@/lib/srs";
+import { playAudioOrTts, resolveSoundPlayUrl } from "@/lib/anki-sound";
 
 const SECTION_UI: Record<
   "vocabulary" | "grammar" | "common",
@@ -72,6 +73,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   const [typed, setTyped] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const shellRef = useRef<HTMLDivElement>(null);
   const onStatsRef = useRef(onStats);
   onStatsRef.current = onStats;
 
@@ -118,7 +120,15 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   const current = phase === "study" ? cards[index] : undefined;
   const currentRaw = phase === "study" ? rawCards[index] : undefined;
 
-  const showAnswer = useCallback(() => setRevealed(true), []);
+  const showAnswer = useCallback(() => {
+    setRevealed(true);
+    requestAnimationFrame(() => shellRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    if (!revealed || !current) return;
+    void playAudioOrTts(current.audioUrl, current.answer);
+  }, [revealed, current?.id, current?.audioUrl, current?.answer]);
 
   const rate = async (rating: 1 | 2 | 3 | 4) => {
     if (!current || !currentRaw) return;
@@ -135,6 +145,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
       setPhase("finished");
     } else {
       setIndex(atIndex + 1);
+      requestAnimationFrame(() => shellRef.current?.focus());
     }
 
     try {
@@ -174,19 +185,22 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
     }
   };
 
+  const rateRef = useRef(rate);
+  rateRef.current = rate;
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (phase !== "study" || !current) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
-      const target = e.target as HTMLElement;
+      const target = e.target as HTMLElement | null;
       const inTextField =
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable;
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable;
 
       if (!revealed) {
-        if (inTextField) return;
+        if (inTextField && e.key !== "Enter") return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           showAnswer();
@@ -194,14 +208,22 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
         return;
       }
 
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        e.stopPropagation();
+        void rateRef.current(3);
+        return;
+      }
+
       if (e.key === "1" || e.key === "2" || e.key === "3" || e.key === "4") {
         e.preventDefault();
-        void rate(Number(e.key) as 1 | 2 | 3 | 4);
+        e.stopPropagation();
+        void rateRef.current(Number(e.key) as 1 | 2 | 3 | 4);
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [revealed, current, phase, index, cards.length, showAnswer]);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [revealed, current, phase, showAnswer]);
 
   if (loading) {
     return <p className="text-center text-stone-500 py-12">Đang tải thẻ…</p>;
@@ -250,46 +272,48 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   const intervals = previewIntervals(currentRaw.srs as Parameters<typeof previewIntervals>[0]);
 
   return (
-    <div className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden">
+    <div
+      ref={shellRef}
+      tabIndex={-1}
+      className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none flex flex-col justify-between"
+    >
       {/* Header pill */}
-      <div className="relative px-4 pt-6 pb-2">
+      <div className="relative px-4 pt-5 pb-2">
         <div className="hsk-header-pill mx-auto max-w-md text-center py-2.5 px-6">
           {title}
         </div>
-        <span className="hsk-level-badge absolute right-6 top-8">
+        <span className="hsk-level-badge absolute right-6 top-7">
           {ui.badge(current.hskLevel)}
         </span>
-        {current.cardTypeLabel && current.cardType !== "viet_trung" && (
-          <span className="absolute left-6 top-8 text-xs bg-white/80 px-2 py-1 rounded">
-            {current.cardTypeLabel}
-          </span>
-        )}
       </div>
 
-      {!revealed && (section !== "grammar" || current.imageUrl) && (
-        <div className="px-4 pb-2">
-          <div className="hsk-study-image-wrap">
-            {current.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={current.imageUrl} alt="" className="hsk-study-image" />
-            ) : section !== "grammar" ? (
-              <div className="w-32 h-32 rounded-lg bg-white/40 flex items-center justify-center text-stone-400 text-xs">
-                Chưa có ảnh
-              </div>
-            ) : null}
-          </div>
-        </div>
-      )}
-
-      {/* Main content */}
-      <div className="mx-4 mb-4">
-        <div className="study-card-panel rounded-xl border-2 border-[#8fad8f] bg-white p-4 shadow-sm">
-          <div className="study-card-scroll">
+      {/* Main card panel - spacious & equal uniform height */}
+      <div className="mx-4 mb-3 flex-1 flex flex-col min-h-0">
+        <div className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-5 md:p-6 shadow-sm flex flex-col flex-1">
+          <div className="study-card-scroll flex-1 flex flex-col justify-center">
             {!revealed ? (
-              <div className="hsk-question-card rounded-xl p-4 space-y-4 w-full">
-                <div className="flex gap-3 items-start">
-                  <span className="text-pink-400 text-2xl font-bold leading-none">?</span>
-                  <div className={`hsk-hints flex-1 space-y-1 study-secondary-text ${section === "grammar" ? "font-semibold" : ""}`}>
+              <div className="space-y-4 w-full my-auto py-2">
+                {current.imageUrl && (
+                  <div className="hsk-study-image-wrap my-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={current.imageUrl} alt="" className="hsk-study-image" />
+                  </div>
+                )}
+
+                {current.pinyin && (
+                  <div className="flex justify-center">
+                    <span className="hsk-pinyin-badge text-base md:text-lg px-4 py-1">
+                      {current.pinyin}
+                    </span>
+                  </div>
+                )}
+
+                <div className="hsk-char-display w-full text-center py-6 md:py-8 px-4 rounded-xl bg-white/95 shadow-sm border border-stone-100 min-h-[140px] flex flex-col items-center justify-center gap-3">
+                  <div
+                    className={`font-bold text-stone-900 tracking-wide ${
+                      section === "grammar" ? "study-secondary-text" : "study-primary-text"
+                    }`}
+                  >
                     {hints.map((h, i) => (
                       <p key={i}>
                         {hints.length > 1 ? `${i + 1}. ` : ""}
@@ -297,22 +321,26 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
                       </p>
                     ))}
                   </div>
+                  {current.audioUrl && <AudioBtn url={current.audioUrl} text={hints[0]} />}
                 </div>
-                <input
-                  type="text"
-                  value={typed}
-                  onChange={(e) => setTyped(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      showAnswer();
-                    }
-                  }}
-                  placeholder={ui.placeholder}
-                  className="hsk-input w-full rounded-lg px-4 py-3 text-lg text-center outline-none"
-                  autoFocus
-                  lang={ui.inputLang}
-                />
+
+                <div className="max-w-md mx-auto w-full">
+                  <input
+                    type="text"
+                    value={typed}
+                    onChange={(e) => setTyped(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        showAnswer();
+                      }
+                    }}
+                    placeholder={ui.placeholder}
+                    className="hsk-input w-full rounded-xl px-4 py-3 text-xl text-center outline-none font-medium shadow-inner"
+                    autoFocus
+                    lang={ui.inputLang}
+                  />
+                </div>
               </div>
             ) : (
               <HskAnswerBack
@@ -329,7 +357,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
       </div>
 
       {/* Stats + action */}
-      <div className="px-4 pb-6 space-y-4">
+      <div className="px-4 pb-5 space-y-3">
         <p className="text-center text-sm">
           <span className="text-blue-600 font-medium">{stats.new}</span>
           <span className="text-stone-400 mx-1">+</span>
@@ -340,7 +368,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
 
         {!revealed ? (
           <div className="flex justify-center">
-            <button type="button" onClick={showAnswer} className="hsk-show-btn px-10 py-2.5">
+            <button type="button" onClick={showAnswer} className="hsk-show-btn px-10 py-2.5 text-base">
               Hiện đáp án
             </button>
           </div>
@@ -354,9 +382,14 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
         )}
 
         <p className="text-center text-xs text-stone-500">
-          {revealed ? "1–4 hoặc bấm nút để đánh giá" : "Gõ đáp án → Enter hoặc bấm Hiện đáp án"}
+          {revealed ? "Enter/Space = Good · 1–4 đánh giá" : "Gõ đáp án → Enter hoặc bấm Hiện đáp án"}
           {" · "}
           {index + 1} / {cards.length}
+          {current.cardTypeLabel &&
+            current.cardType !== "viet_trung" &&
+            current.cardType !== "trung_viet" && (
+            <span className="text-stone-400"> · {current.cardTypeLabel}</span>
+          )}
         </p>
       </div>
     </div>
@@ -382,44 +415,46 @@ function HskAnswerBack({
   const mainDisplay = isGrammar ? "study-secondary-text leading-snug px-2" : "study-primary-text";
 
   return (
-    <div className="space-y-3 w-full">
-      {/* Pinyin tag + wrong answer comparison */}
-      <div className="relative flex flex-col items-center gap-2 pt-1">
+    <div className="space-y-4 w-full my-auto py-2">
+      {/* Wrong answer comparison & Pinyin badge */}
+      <div className="relative flex flex-col items-center gap-2">
         {showWrongCompare && (
           <div className="text-center space-y-1 mb-1">
-            <p className={`font-medium text-red-700 ${isGrammar ? "text-lg" : "text-3xl"}`}>{typed}</p>
+            <p className={`font-medium text-red-700 ${isGrammar ? "text-lg" : "text-2xl md:text-3xl"}`}>{typed}</p>
             <p className="text-stone-400 text-lg leading-none">↓</p>
           </div>
         )}
         {card.pinyin && (
-          <span className="hsk-pinyin-badge">{card.pinyin}</span>
+          <span className="hsk-pinyin-badge text-base md:text-lg px-4 py-1">
+            {card.pinyin}
+          </span>
         )}
       </div>
 
-      {/* Image */}
+      {/* Image if present */}
       {card.imageUrl ? (
-        <div className="hsk-study-image-wrap min-h-[120px] py-1">
+        <div className="hsk-study-image-wrap my-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={card.imageUrl} alt="" className="hsk-study-image bg-white/50" />
+          <img src={card.imageUrl} alt="" className="hsk-study-image" />
         </div>
       ) : null}
 
-      {/* Large answer */}
-      <div className="hsk-char-display w-full text-center py-3 px-4 rounded-xl bg-white/90 shadow-sm">
-        <span className={`${mainDisplay} font-semibold text-stone-900`}>{card.answer}</span>
+      {/* Large Chinese character display */}
+      <div className="hsk-char-display w-full text-center py-6 md:py-8 px-4 rounded-xl bg-white/95 shadow-sm border border-stone-100 min-h-[140px] flex flex-col items-center justify-center">
+        <span className={`${mainDisplay} font-bold text-stone-900 tracking-wide`}>{card.answer}</span>
       </div>
 
       {/* Definition card */}
-      <div className="hsk-answer-card rounded-xl p-3 space-y-2">
-        <div className="flex flex-wrap items-center gap-2 study-secondary-text">
-          <span className={`font-bold text-stone-900 ${isGrammar ? "" : "study-primary-text"}`}>{card.answer}</span>
+      <div className="hsk-answer-card rounded-xl p-4 space-y-2">
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <span className={`font-bold text-stone-900 ${isGrammar ? "" : "text-xl md:text-2xl"}`}>{card.answer}</span>
           {card.pinyin && (
-            <span className="text-stone-600">/{card.pinyin}/</span>
+            <span className="text-stone-600 text-base md:text-lg">/{card.pinyin}/</span>
           )}
-          {card.audioUrl && <AudioBtn url={card.audioUrl} />}
+          <AudioBtn url={card.audioUrl} text={card.answer} />
         </div>
         {!isGrammar && (
-          <div className="hsk-hints text-sm space-y-1">
+          <div className="hsk-hints text-base md:text-lg text-center space-y-1 text-emerald-800 font-medium pt-1">
             {hints.map((h, i) => (
               <p key={i}>
                 {hints.length > 1 ? `${i + 1}. ` : ""}
@@ -432,28 +467,28 @@ function HskAnswerBack({
 
       {/* Example sentence */}
       {card.example && (card.example.chinese || card.example.vietnamese) && (
-        <div className="hsk-example-card rounded-xl p-4">
-          <div className="flex gap-2 items-start">
-            <span className="text-blue-500 text-lg leading-none mt-0.5">•</span>
-            <div className="flex-1 text-sm space-y-1">
+        <div className="hsk-example-card rounded-xl p-4 text-left">
+          <div className="flex gap-2.5 items-start">
+            <span className="text-emerald-600 text-lg leading-none mt-0.5">•</span>
+            <div className="flex-1 space-y-1.5">
               {card.example.chinese && (
-                <p className="font-medium text-stone-900">{card.example.chinese}</p>
+                <p className="font-semibold text-stone-900 text-base md:text-lg">{card.example.chinese}</p>
               )}
               {card.example.pinyin && (
-                <p className="text-stone-500 italic">/{card.example.pinyin}/</p>
+                <p className="text-stone-500 italic text-sm md:text-base">/{card.example.pinyin}/</p>
               )}
               {card.example.vietnamese && (
-                <p className="text-stone-700">{card.example.vietnamese}</p>
+                <p className="text-stone-700 text-sm md:text-base">{card.example.vietnamese}</p>
               )}
             </div>
-            {card.exampleAudioUrl && <AudioBtn url={card.exampleAudioUrl} />}
+            <AudioBtn url={card.exampleAudioUrl} text={card.example.chinese} />
           </div>
         </div>
       )}
 
       {/* Mnemonic / etymology */}
       {card.mnemonic && (
-        <div className="hsk-mnemonic-card rounded-xl p-4 text-sm whitespace-pre-line leading-relaxed">
+        <div className="hsk-mnemonic-card rounded-xl p-4 text-sm md:text-base whitespace-pre-line leading-relaxed text-left">
           {card.mnemonic}
         </div>
       )}
@@ -467,25 +502,31 @@ function HskAnswerBack({
             rel="noopener noreferrer"
             className="hsk-hanzii-btn inline-flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold"
           >
-            <span aria-hidden>🔍</span> Hanzii
+            <span aria-hidden>🔍</span> Tra từ điển Hanzii
           </a>
         </div>
       )}
 
       {correct && (
-        <p className="text-center text-sm text-emerald-700 font-medium">Chính xác!</p>
+        <p className="text-center text-sm md:text-base text-emerald-700 font-semibold">✓ Chính xác!</p>
       )}
     </div>
   );
 }
 
-function AudioBtn({ url }: { url: string }) {
+function AudioBtn({ url, text }: { url?: string; text?: string }) {
+  const play = () => {
+    void playAudioOrTts(url, text);
+  };
   return (
     <button
       type="button"
       aria-label="Phát âm"
       className="hsk-audio-btn w-8 h-8 rounded-full inline-flex items-center justify-center text-sm shrink-0"
-      onClick={() => void new Audio(url).play()}
+      onClick={(e) => {
+        e.stopPropagation();
+        play();
+      }}
     >
       🔊
     </button>

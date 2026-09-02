@@ -6,8 +6,8 @@ import {
   type ImportPreview,
 } from "@/lib/import-cards";
 import { mergeFieldDefs, stringifyExtraFields } from "@/lib/fields";
-import { resolveFieldNames, serializeFieldDefEntries, resolveFieldDefEntries } from "@/lib/field-defs";
-import { getSectionPreset, courseNeedsPresetFields, importFieldNamesForSection } from "@/lib/section-presets";
+import { serializeFieldDefEntries } from "@/lib/field-defs";
+import { getSectionPreset, courseNeedsPresetFields, importFieldNamesForSection, resolveFieldDefEntriesForCourse } from "@/lib/section-presets";
 import type { StudySectionId } from "@/lib/sections";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
@@ -87,7 +87,8 @@ async function handleImport(req: Request, context: RouteContext) {
 
   const preset = getSectionPreset(section);
   const presetNames = preset.fieldDefs.map((f) => f.name);
-  const existingNames = resolveFieldNames(course.fieldDefs);
+  const baseEntries = resolveFieldDefEntriesForCourse(section, course.fieldDefs);
+  const existingNames = baseEntries.map((e) => e.name);
   const mergedFromImport = mergeFieldDefs(
     existingNames.length > 0 ? existingNames : presetNames,
     result.cards.map((c) => c.extraFields ?? {}),
@@ -100,7 +101,7 @@ async function handleImport(req: Request, context: RouteContext) {
     ? serializeFieldDefEntries(preset.fieldDefs)
     : serializeFieldDefEntries(
         mergedDefs.map((name) => {
-          const existing = resolveFieldDefEntries(course.fieldDefs).find((e) => e.name === name);
+          const existing = baseEntries.find((e) => e.name === name);
           const fromPreset = preset.fieldDefs.find((e) => e.name === name);
           return existing ?? fromPreset ?? { name, fontFamily: "Arial", fontSize: 20 };
         }),

@@ -29,9 +29,14 @@ export type ImportPreview = {
   detectedColumns: string[];
   /** Cột Excel → tên trường trong bộ thẻ */
   columnMapping: Record<string, string>;
+  /** Cột Excel không khớp trường nào */
+  unmappedColumns: string[];
   expectedFields: string[];
   warnings: string[];
   sample: ParsedCard[];
+  /** Số dòng dữ liệu (không tính header / dòng trống) */
+  sourceRows?: number;
+  skippedRows?: number;
 };
 
 export type ImportParseOptions = {
@@ -53,6 +58,43 @@ export function normHeader(s: string): string {
 
 const SKIP_HEADERS = new Set(["stt", "tt", "no", "#", "id", "index", "thu tu", "so thu tu"]);
 
+/** Alias theo mục học — map tên cột Excel → tên field trong preset */
+function sectionImportAliases(section: StudySectionId): Record<string, string> {
+  if (section === "grammar") {
+    return {
+      "chu han": "CHỮ HÁN",
+      "tieng trung": "CHỮ HÁN",
+      "han tu": "CHỮ HÁN",
+      "nghia tieng viet": "NGHĨA TIẾNG VIỆT",
+      "nghia viet": "NGHĨA TIẾNG VIỆT",
+      nghia: "NGHĨA TIẾNG VIỆT",
+      "y nghia": "NGHĨA TIẾNG VIỆT",
+      "giai thich": "NGHĨA TIẾNG VIỆT",
+      "cau truc": "CẤU TRÚC",
+      "mau cau": "CẤU TRÚC",
+      "cach dung": "CÁCH DÙNG",
+      "diem ngu phap": "ĐIỂM NGỮ PHÁP",
+      "ma ngu phap": "MÃ",
+      ma: "MÃ",
+      pinyin: "PINYIN",
+      "phien am": "PINYIN",
+      "am thanh": "ÂM THANH",
+      audio: "ÂM THANH",
+    };
+  }
+  if (section === "common") {
+    return {
+      "tinh huong": "TÌNH HUỐNG",
+      situation: "TÌNH HUỐNG",
+      "cum tu": "CÂU TRẢ LỜI",
+      "cau tra loi": "CÂU TRẢ LỜI",
+      "tieng trung": "CÂU TRẢ LỜI",
+      "nghia tieng viet": "TÌNH HUỐNG",
+    };
+  }
+  return {};
+}
+
 function resolveAliasTarget(aliasTarget: string, fieldNames: string[]): string | null {
   if (fieldNames.includes(aliasTarget)) return aliasTarget;
   const norm = normHeader(aliasTarget);
@@ -60,13 +102,20 @@ function resolveAliasTarget(aliasTarget: string, fieldNames: string[]): string |
 }
 
 /** Gán tên cột Excel → đúng tên field trong preset / bộ thẻ */
-export function headerToFieldName(header: string, fieldNames: string[]): string | null {
+export function headerToFieldName(
+  header: string,
+  fieldNames: string[],
+  section: StudySectionId = "vocabulary",
+): string | null {
   const norm = normHeader(header);
   if (!norm || SKIP_HEADERS.has(norm)) return null;
 
   for (const name of fieldNames) {
     if (normHeader(name) === norm) return name;
   }
+
+  const sectionAlias = sectionImportAliases(section)[norm];
+  if (sectionAlias && fieldNames.includes(sectionAlias)) return sectionAlias;
 
   const aliasTarget = IMPORT_FIELD_ALIASES[norm];
   if (aliasTarget) {
@@ -76,7 +125,7 @@ export function headerToFieldName(header: string, fieldNames: string[]): string 
 
   let best: { field: string; score: number } | null = null;
 
-  for (const [alias, target] of Object.entries(IMPORT_FIELD_ALIASES)) {
+  for (const [alias, target] of Object.entries({ ...IMPORT_FIELD_ALIASES, ...sectionImportAliases(section) })) {
     const resolved = resolveAliasTarget(target, fieldNames);
     if (!resolved) continue;
     if (norm === alias) {
@@ -102,13 +151,27 @@ export function headerToFieldName(header: string, fieldNames: string[]): string 
 export type ColumnMapping = Map<number, string>;
 
 /** Mỗi cột Excel → một trường (không trùng) */
-export function buildColumnMapping(headers: string[], fieldNames: string[]): ColumnMapping {
+export function buildColumnMapping(
+  headers: string[],
+  fieldNames: string[],
+  section: StudySectionId = "vocabulary",
+): ColumnMapping {
   const candidates: { colIdx: number; header: string; field: string; score: number }[] = [];
 
   headers.forEach((header, colIdx) => {
-    const field = headerToFieldName(header, fieldNames);
-    if (!field) return;
+    let field = headerToFieldName(header, fieldNames, section);
     const norm = normHeader(header);
+    // Cột STT thứ 2 trong file ngữ pháp (NP1, NP2…) → MÃ
+    if (
+      !field &&
+      section === "grammar" &&
+      norm === "stt" &&
+      colIdx > 0 &&
+      fieldNames.includes("MÃ")
+    ) {
+      field = "MÃ";
+    }
+    if (!field) return;
     const exact = norm === normHeader(field) ? 200 : 0;
     const aliasExact = IMPORT_FIELD_ALIASES[norm] ? 150 : 0;
     candidates.push({
@@ -141,10 +204,20 @@ function mappingToRecord(headers: string[], map: ColumnMapping): Record<string, 
   return out;
 }
 
-function rowLooksLikeHeader(cells: string[], fieldNames: string[]): boolean {
+function rowLooksLikeHeader(cells: string[], fieldNames: string[], section: StudySectionId): boolean {
   let hits = 0;
   for (const cell of cells) {
-    if (cell.trim() && headerToFieldName(cell, fieldNames)) hits++;
+    const trimmed = cell.trim();
+    if (!trimmed || trimmed.length > 35) continue;
+    const norm = normHeader(trimmed);
+    if (fieldNames.some((f) => normHeader(f) === norm)) {
+      hits++;
+      continue;
+    }
+    const alias = sectionImportAliases(section)[norm] ?? IMPORT_FIELD_ALIASES[norm];
+    if (alias && fieldNames.some((f) => normHeader(f) === normHeader(alias))) {
+      hits++;
+    }
   }
   return hits >= 2;
 }
@@ -166,7 +239,6 @@ function applyPresetFields(
   section: StudySectionId,
   fields: Record<string, string>,
 ): ParsedCard | null {
-  const fieldNameSet = new Set(Object.keys(fields));
   const { front: frontLabel, back: backLabel } = requiredFieldLabels(section);
 
   let front = "";
@@ -188,8 +260,33 @@ function applyPresetFields(
   if (!front && fields[frontLabel]) front = fields[frontLabel].trim();
   if (!back && fields[backLabel]) back = fields[backLabel].trim();
 
-  if (!front || !back) return null;
-  if (/^\d+$/.test(front) && front.length <= 4 && !fieldNameSet.has(frontLabel)) return null;
+  if (/^\d+$/.test(front) && front.length <= 4) {
+    const structure = fields[frontLabel]?.trim() ?? fields["CHỮ HÁN"]?.trim() ?? "";
+    if (!structure || /^\d+$/.test(structure)) front = "";
+  }
+
+  if (section === "grammar") {
+    if (!front) front = fields["CHỮ HÁN"]?.trim() || "";
+    if (!back) {
+      back =
+        fields["NGHĨA TIẾNG VIỆT"]?.trim() ||
+        fields["GIẢI THÍCH"]?.trim() ||
+        "";
+    }
+    if (front && !back) back = fields["NGHĨA TIẾNG VIỆT"]?.trim() || front;
+    if (back && !front) front = fields["CHỮ HÁN"]?.trim() || back;
+  }
+
+  if (!front && !back) return null;
+  if (!front || !back) {
+    if (section === "grammar" || section === "common") {
+      if (!front) front = back;
+      if (!back) back = front;
+    } else {
+      return null;
+    }
+  }
+  if (/^\d+$/.test(front) && front.length <= 4 && !back.trim()) return null;
 
   if (!audioUrl) {
     for (const value of Object.values(fields)) {
@@ -199,6 +296,10 @@ function applyPresetFields(
         break;
       }
     }
+  }
+
+  if (section === "grammar" && !audioUrl && extraFields["MÃ"]?.trim()) {
+    audioUrl = `[sound:${extraFields["MÃ"].trim()}]`;
   }
 
   return {
@@ -215,17 +316,31 @@ function positionalRowByPreset(
   rowArr: string[],
   section: StudySectionId,
   fieldNames: string[],
+  columnMap?: ColumnMapping,
 ): ParsedCard | null {
   const preset = getSectionPreset(section);
   const names = fieldNames.length ? fieldNames : preset.fieldDefs.map((f) => f.name);
   const values: Record<string, string> = {};
-  const limit = Math.min(rowArr.length, names.length);
-  for (let col = 0; col < limit; col++) {
-    const val = String(rowArr[col] ?? "").trim();
-    if (!val || SKIP_HEADERS.has(normHeader(val))) continue;
-    values[names[col]!] = val;
+
+  if (columnMap && columnMap.size > 0) {
+    for (const [colIdx, fieldName] of columnMap.entries()) {
+      const val = String(rowArr[colIdx] ?? "").trim();
+      if (val) values[fieldName] = val;
+    }
+  } else {
+    let startCol = 0;
+    const firstCell = String(rowArr[0] ?? "").trim();
+    if (/^\d+$/.test(firstCell) && firstCell.length <= 4) startCol = 1;
+    const limit = Math.min(rowArr.length, names.length + startCol);
+    for (let col = startCol; col < limit; col++) {
+      const val = String(rowArr[col] ?? "").trim();
+      if (!val || SKIP_HEADERS.has(normHeader(val))) continue;
+      const nameIdx = col - startCol;
+      if (names[nameIdx]) values[names[nameIdx]!] = val;
+    }
   }
-  if (Object.keys(values).length < 2) return null;
+
+  if (Object.keys(values).length < 1) return null;
   return applyPresetFields(section, values);
 }
 
@@ -236,24 +351,31 @@ function rowToCard(
   fieldNames: string[],
 ): ParsedCard | null {
   const mapped = fieldsFromMappedRow(rowArr, columnMap);
-  if (Object.keys(mapped).length >= 2) {
+  if (Object.keys(mapped).length >= 1) {
     const card = applyPresetFields(section, mapped);
     if (card) return card;
   }
+  const positional = positionalRowByPreset(rowArr, section, fieldNames, columnMap);
+  if (positional) return positional;
   return positionalRowByPreset(rowArr, section, fieldNames);
 }
 
 function findHeaderRow(
   rawRows: string[][],
   fieldNames: string[],
+  section: StudySectionId,
 ): number {
-  for (let r = 0; r < Math.min(rawRows.length, 15); r++) {
+  if (rawRows.length === 0) return 0;
+  const row0 = ((rawRows[0] as string[]) || []).map((c) => String(c ?? "").trim());
+  if (rowLooksLikeHeader(row0, fieldNames, section)) return 0;
+
+  for (let r = 0; r < Math.min(rawRows.length, 5); r++) {
     const row = rawRows[r];
     if (!Array.isArray(row)) continue;
     const cells = row.map((c) => String(c ?? "").trim());
     const nonEmpty = cells.filter(Boolean);
     if (nonEmpty.length < 2) continue;
-    if (rowLooksLikeHeader(cells, fieldNames)) return r;
+    if (rowLooksLikeHeader(cells, fieldNames, section)) return r;
   }
   return 0;
 }
@@ -261,7 +383,14 @@ function findHeaderRow(
 export function parseExcelBuffer(
   buffer: ArrayBuffer,
   options: ImportParseOptions = {},
-): { cards: ParsedCard[]; columnMapping: Record<string, string>; expectedFields: string[] } {
+): {
+  cards: ParsedCard[];
+  columnMapping: Record<string, string>;
+  expectedFields: string[];
+  unmappedColumns: string[];
+  sourceRows: number;
+  skippedRows: number;
+} {
   const deckSection = options.deckSection ?? "vocabulary";
   const fieldNames =
     options.fieldNames?.length
@@ -271,6 +400,9 @@ export function parseExcelBuffer(
   const wb = XLSX.read(buffer, { type: "array" });
   const cards: ParsedCard[] = [];
   let columnMapping: Record<string, string> = {};
+  let unmappedColumns: string[] = [];
+  let sourceRows = 0;
+  let skippedRows = 0;
 
   for (const sheetName of wb.SheetNames) {
     const sheet = wb.Sheets[sheetName];
@@ -285,12 +417,16 @@ export function parseExcelBuffer(
     const rawRows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "" });
     if (rawRows.length === 0) continue;
 
-    const headerIdx = findHeaderRow(rawRows as string[][], sheetFieldNames);
+    const headerIdx = findHeaderRow(rawRows as string[][], sheetFieldNames, sheetSection);
     const headers = ((rawRows[headerIdx] as string[]) || []).map((h) => String(h ?? "").trim());
-    const columnMap = buildColumnMapping(headers, sheetFieldNames);
+    const columnMap = buildColumnMapping(headers, sheetFieldNames, sheetSection);
 
     if (columnMap.size > 0 && Object.keys(columnMapping).length === 0) {
       columnMapping = mappingToRecord(headers, columnMap);
+      unmappedColumns = headers
+        .map((h, i) => ({ h: h.trim(), i }))
+        .filter(({ h, i }) => h && !columnMap.has(i))
+        .map(({ h }) => h);
     }
 
     for (let i = headerIdx + 1; i < rawRows.length; i++) {
@@ -300,16 +436,15 @@ export function parseExcelBuffer(
       const hasData = rowArr.some((c) => String(c ?? "").trim());
       if (!hasData) continue;
 
-      if (rowLooksLikeHeader(rowArr.map((c) => String(c ?? "").trim()), sheetFieldNames)) {
-        continue;
-      }
+      sourceRows++;
 
       const card = rowToCard(rowArr, sheetSection, columnMap, sheetFieldNames);
       if (card) cards.push({ ...card, section: options.deckSection ?? card.section });
+      else skippedRows++;
     }
   }
 
-  return { cards, columnMapping, expectedFields: fieldNames };
+  return { cards, columnMapping, expectedFields: fieldNames, unmappedColumns, sourceRows, skippedRows };
 }
 
 function splitLine(line: string): string[] {
@@ -330,11 +465,11 @@ function isSectionToken(value: string): boolean {
   return ["tu_vung", "ngu_phap", "sap_xep_cau", "thong_dung"].includes(v);
 }
 
-function isHeaderLine(parts: string[], fieldNames: string[]): boolean {
+function isHeaderLine(parts: string[], fieldNames: string[], section: StudySectionId): boolean {
   if (parts.length < 2) return false;
   let hits = 0;
   for (const p of parts) {
-    if (p.trim() && headerToFieldName(p, fieldNames)) hits++;
+    if (p.trim() && headerToFieldName(p, fieldNames, section)) hits++;
   }
   return hits >= 2;
 }
@@ -381,7 +516,7 @@ export function parseNotepadText(
 
     const parts = splitLine(raw);
     if (parts.length < 2) continue;
-    if (isHeaderLine(parts, names)) continue;
+    if (isHeaderLine(parts, names, currentSection)) continue;
 
     let section = currentSection;
     let offset = 0;
@@ -436,22 +571,41 @@ export function parseImportFile(
   let cards: ParsedCard[] = [];
   let columnMapping: Record<string, string> = {};
   let detectedColumns: string[] = [];
+  let unmappedColumns: string[] = [];
+  let sourceRows = 0;
+  let skippedRows = 0;
 
   if (lower.endsWith(".xlsx") || lower.endsWith(".xls") || lower.endsWith(".csv")) {
     const parsed = parseExcelBuffer(buffer, { ...opts, deckSection: section, fieldNames });
     cards = parsed.cards;
     columnMapping = parsed.columnMapping;
     detectedColumns = Object.keys(columnMapping);
+    unmappedColumns = parsed.unmappedColumns;
+    sourceRows = parsed.sourceRows;
+    skippedRows = parsed.skippedRows;
 
     if (Object.keys(columnMapping).length === 0) {
+      const hint =
+        section === "grammar"
+          ? "CHỮ HÁN, PINYIN, NGHĨA TIẾNG VIỆT, CẤU TRÚC, CÁCH DÙNG, ĐIỂM NGỮ PHÁP, MÃ"
+          : section === "vocabulary"
+            ? "Tiếng Trung, Pinyin, Nghĩa tiếng Việt…"
+            : fieldNames.slice(0, 4).join(", ");
       warnings.push(
         `Không khớp được tiêu đề cột với trường: ${fieldNames.join(", ")}. ` +
-          "Đảm bảo hàng 1 có tên cột giống Browse (vd: Tiếng Trung, Pinyin, Nghĩa hán việt…).",
+          `Hàng 1 cần tên cột giống Browse (vd: ${hint}).`,
       );
     }
 
     if (cards.length === 0) {
       warnings.push("Không đọc được dòng nào từ Excel/CSV. Kiểm tra dòng tiêu đề cột.");
+    } else if (skippedRows > 0) {
+      warnings.push(
+        `Đã bỏ qua ${skippedRows}/${sourceRows} dòng (trống, trùng header, hoặc thiếu CHỮ HÁN/NGHĨA TIẾNG VIỆT).`,
+      );
+    }
+    if (unmappedColumns.length > 0) {
+      warnings.push(`Cột chưa khớp trường: ${unmappedColumns.join(", ")}`);
     }
   } else {
     let text = new TextDecoder("utf-8").decode(buffer).replace(/^\uFEFF/, "");
@@ -472,9 +626,12 @@ export function parseImportFile(
     bySection,
     detectedColumns,
     columnMapping,
+    unmappedColumns,
     expectedFields: fieldNames,
     warnings,
     sample: cards.slice(0, 8),
+    sourceRows: sourceRows || undefined,
+    skippedRows: skippedRows || undefined,
   };
 }
 

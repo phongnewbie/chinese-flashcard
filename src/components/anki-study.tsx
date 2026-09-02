@@ -26,7 +26,7 @@ import {
 
 } from "@/lib/card-template";
 import type { CardTypeDef } from "@/lib/card-types";
-import { resolveSoundPlayUrl } from "@/lib/anki-sound";
+import { playAudioOrTts, resolveSoundPlayUrl } from "@/lib/anki-sound";
 
 import { sectionLabel, type StudySectionId } from "@/lib/sections";
 
@@ -291,12 +291,16 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
 
-  const playAudio = (url: string) => {
-    const resolved = resolveSoundPlayUrl(url);
-    const audio = new Audio(resolved);
-    void audio.play().catch(() => {
-      console.warn("[audio] Không phát được:", resolved);
-    });
+  const playAudio = (url?: string | null, textFallback?: string | null) => {
+    const fallback =
+      textFallback ||
+      fields?.["Tiếng Trung"] ||
+      fields?.["CẤU TRÚC"] ||
+      fields?.["CÂU ĐÚNG"] ||
+      fields?.["Front"] ||
+      current?.front ||
+      "";
+    void playAudioOrTts(url, fallback);
   };
 
 
@@ -361,90 +365,66 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
   rateRef.current = rate;
 
   const handleStudyKeyDown = (e: React.KeyboardEvent) => {
-
     if (phase !== "study" || !current) return;
-
     if (e.repeat) return;
-
     const target = e.target as HTMLElement | null;
-
     const tag = target?.tagName;
-
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-
     if (target?.isContentEditable) return;
 
-
-
     if (e.key === "Enter" || e.key === " ") {
-
       e.preventDefault();
-
       e.stopPropagation();
-
       if (flipped) void rateRef.current(3);
-
-      else setFlipped(true);
-
+      else {
+        setFlipped(true);
+        focusStudy();
+      }
       return;
-
     }
-
-
 
     if (flipped) {
-
       if (e.key === "1") void rateRef.current(1);
-
       else if (e.key === "2") void rateRef.current(2);
-
       else if (e.key === "3") void rateRef.current(3);
-
       else if (e.key === "4") void rateRef.current(4);
-
     }
-
   };
+
+  const handleStudyKeyDownRef = useRef(handleStudyKeyDown);
+  handleStudyKeyDownRef.current = handleStudyKeyDown;
 
 
 
   useEffect(() => {
-
     const el = cardRef.current;
-
     if (!el) return;
 
     const onClick = (e: MouseEvent) => {
-
       const t = e.target as HTMLElement;
-
       const btn = t.closest("[data-audio]") as HTMLElement | null;
-
-      if (btn?.dataset.audio) {
-
+      if (btn) {
         e.stopPropagation();
-
         e.preventDefault();
-
-        playAudio(btn.dataset.audio);
-
+        playAudio(btn.dataset.audio, btn.dataset.text);
       }
-
     };
 
     el.addEventListener("click", onClick);
-
     return () => el.removeEventListener("click", onClick);
-
-  }, [flipped, current?.id]);
-
-
+  }, [flipped, current?.id, fields]);
 
   useEffect(() => {
-
     if (phase === "study") focusStudy();
-
   }, [phase, index]);
+
+  useEffect(() => {
+    const onWindowKey = (e: KeyboardEvent) => {
+      handleStudyKeyDownRef.current(e as unknown as React.KeyboardEvent);
+    };
+    window.addEventListener("keydown", onWindowKey, true);
+    return () => window.removeEventListener("keydown", onWindowKey, true);
+  }, [phase, current?.id]);
 
 
 
@@ -560,11 +540,10 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
     <div
       ref={studyRef}
       tabIndex={-1}
-      onKeyDown={handleStudyKeyDown}
-      className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none"
+      className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none flex flex-col justify-between"
     >
 
-      <div className="relative px-4 pt-6 pb-2">
+      <div className="relative px-4 pt-5 pb-2">
 
         <div className="hsk-header-pill mx-auto max-w-md text-center py-2.5 px-6">
 
@@ -572,21 +551,11 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
         </div>
 
-        {current.cardTypeLabel && current.cardType !== "default" && (
-
-          <span className="absolute left-6 top-8 text-xs bg-white/80 px-2 py-1 rounded">
-
-            {current.cardTypeLabel}
-
-          </span>
-
-        )}
-
       </div>
 
 
 
-      <div className="px-4 pb-2 flex items-center justify-between text-sm text-stone-600">
+      <div className="px-4 pb-1 flex items-center justify-between text-sm text-stone-600">
 
         <span>
 
@@ -600,35 +569,11 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
         </span>
 
-        {current.audioUrl && (
-
-          <button
-
-            type="button"
-
-            onClick={(e) => {
-
-              e.stopPropagation();
-
-              playAudio(current.audioUrl!);
-
-            }}
-
-            className="text-emerald-800 text-xs hover:underline"
-
-          >
-
-            🔊 Nghe
-
-          </button>
-
-        )}
-
       </div>
 
 
 
-      <div className="mx-4 mb-4">
+      <div className="mx-4 mb-3 flex-1 flex flex-col min-h-0">
 
         <style>{activeTemplates.cardCss}</style>
 
@@ -640,9 +585,11 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
             if (!flipped) setFlipped(true);
 
+            focusStudy();
+
           }}
 
-          className="anki-card-shell w-full rounded-xl border-2 border-[#8fad8f] bg-white p-4 shadow-sm text-left transition hover:border-emerald-400 cursor-pointer"
+          className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-4 md:p-5 shadow-sm text-left transition hover:border-emerald-400 cursor-pointer flex flex-col flex-1"
 
         >
 
@@ -650,7 +597,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
             ref={cardRef}
 
-            className="anki-card-content"
+            className="anki-card-content flex-1"
 
             dangerouslySetInnerHTML={{ __html: html }}
 
@@ -662,7 +609,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
 
-      <div className="px-4 pb-6 space-y-3">
+      <div className="px-4 pb-5 space-y-3">
 
         <p className="text-center text-sm">
 
@@ -704,13 +651,13 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-2xl mx-auto w-full">
 
-            <RateBtn label="Again" sub={intervals?.again} color="red" onClick={() => void rate(1)} hotkey="1" />
+            <RateBtn label="Again" sub={intervals?.again} color="red" onClick={() => { void rate(1); focusStudy(); }} hotkey="1" />
 
-            <RateBtn label="Hard" sub={intervals?.hard} color="amber" onClick={() => void rate(2)} hotkey="2" />
+            <RateBtn label="Hard" sub={intervals?.hard} color="amber" onClick={() => { void rate(2); focusStudy(); }} hotkey="2" />
 
-            <RateBtn label="Good" sub={intervals?.good} color="green" onClick={() => void rate(3)} hotkey="3" />
+            <RateBtn label="Good" sub={intervals?.good} color="green" onClick={() => { void rate(3); focusStudy(); }} hotkey="3" />
 
-            <RateBtn label="Easy" sub={intervals?.easy} color="blue" onClick={() => void rate(4)} hotkey="4" />
+            <RateBtn label="Easy" sub={intervals?.easy} color="blue" onClick={() => { void rate(4); focusStudy(); }} hotkey="4" />
 
           </div>
 

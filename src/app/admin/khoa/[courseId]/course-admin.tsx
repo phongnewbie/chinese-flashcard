@@ -8,8 +8,6 @@ import { resolveFieldDefs } from "@/lib/anki-note-fields";
 import { PersistenceBanner } from "@/components/persistence-banner";
 import { ImportFileButton } from "@/app/admin/admin-ui";
 import { TemplateEditor } from "./template-editor";
-import { FieldDefsEditor } from "./field-editor";
-import { CardTypesEditor } from "./card-types-editor";
 import { AnkiBrowse } from "./anki-browse";
 import Link from "next/link";
 
@@ -210,7 +208,12 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
             {previewLoading && <p className="text-sm text-stone-500">Đang đọc file…</p>}
             {preview && (
               <div className="border rounded-lg p-4 space-y-3 bg-emerald-50/50">
-                <p className="font-medium">Xem trước: {preview.total} câu</p>
+                <p className="font-medium">
+                  Xem trước: {preview.total} câu
+                  {preview.sourceRows != null && preview.sourceRows > preview.total
+                    ? ` (từ ${preview.sourceRows} dòng Excel)`
+                    : ""}
+                </p>
                 {preview.expectedFields?.length > 0 && (
                   <div className="text-sm">
                     <p className="text-stone-600 mb-1">Trường trong bộ thẻ:</p>
@@ -308,26 +311,11 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
         )}
         {tab === "settings" && (
           <div className="space-y-6">
-            <p className="text-sm text-stone-600 bg-amber-50 border border-amber-100 rounded-lg px-4 py-3">
-              Giống Anki: <strong>Tools → Manage Note Types → Cards</strong> — chỉnh HTML/CSS mặt trước, mặt sau và
-              style thẻ cho bộ <strong>{course.title}</strong>.
-            </p>
-            <FieldDefsEditor courseId={courseId} initial={resolveFieldDefs(course.fieldDefs)} onSaved={reload} />
-            <CardTypesEditor
-              courseId={courseId}
-              primarySection={course.primarySection ?? "vocabulary"}
-              cardTypesRaw={course.cardTypes}
-              baseTemplates={{
-                frontTemplate: course.frontTemplate,
-                backTemplate: course.backTemplate,
-                cardCss: course.cardCss,
-              }}
-              onSaved={reload}
-            />
             <TemplateEditor
               key={`tpl-${course.id}-${course.frontTemplate?.length ?? 0}-${course.backTemplate?.length ?? 0}`}
               courseId={courseId}
               primarySection={course.primarySection ?? "vocabulary"}
+              cardTypesRaw={course.cardTypes}
               initial={{ frontTemplate: course.frontTemplate, backTemplate: course.backTemplate, cardCss: course.cardCss }}
               fieldNames={resolveFieldDefs(course.fieldDefs)}
               onSaved={reload}

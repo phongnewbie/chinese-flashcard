@@ -44,9 +44,94 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function audioButtonHtml(url: string): string {
+function audioButtonHtml(url: string, text = ""): string {
   const resolved = resolveSoundPlayUrl(url);
-  return `<button type="button" class="audio-btn" data-audio="${escapeHtml(resolved)}" title="Nghe">🔊 Nghe</button>`;
+  const dataText = text ? ` data-text="${escapeHtml(text)}"` : "";
+  return `<button type="button" class="audio-btn" data-audio="${escapeHtml(resolved)}"${dataText} title="Nghe">🔊 Nghe</button>`;
+}
+
+/** Phát âm thanh qua Web Speech API tiếng Trung */
+export function playSpeechTts(text: string, lang = "zh-CN"): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      resolve();
+      return;
+    }
+    try {
+      window.speechSynthesis.cancel();
+      const clean = text.replace(/<[^>]+>/g, "").trim();
+      if (!clean) {
+        resolve();
+        return;
+      }
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.lang = lang;
+      utterance.rate = 0.85;
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      resolve();
+    }
+  });
+}
+
+/** Phát âm thanh: ưu tiên file mp3/url, nếu lỗi 404 hoặc không có file thì tự fallback sang giọng đọc TTS tiếng Trung */
+export function playAudioOrTts(
+  audioUrl?: string | null,
+  fallbackChineseText?: string | null,
+): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined") {
+      resolve();
+      return;
+    }
+
+    const cleanText = (fallbackChineseText ?? "").replace(/<[^>]+>/g, "").trim();
+
+    if (audioUrl && audioUrl.trim()) {
+      const src = resolveSoundPlayUrl(audioUrl);
+      const audio = new Audio(src);
+      let resolved = false;
+
+      const finish = () => {
+        if (!resolved) {
+          resolved = true;
+          resolve();
+        }
+      };
+
+      audio.onended = finish;
+      audio.onerror = () => {
+        if (!resolved) {
+          resolved = true;
+          if (cleanText) {
+            void playSpeechTts(cleanText).then(resolve);
+          } else {
+            resolve();
+          }
+        }
+      };
+
+      audio.play().catch(() => {
+        if (!resolved) {
+          resolved = true;
+          if (cleanText) {
+            void playSpeechTts(cleanText).then(resolve);
+          } else {
+            resolve();
+          }
+        }
+      });
+      return;
+    }
+
+    if (cleanText) {
+      void playSpeechTts(cleanText).then(resolve);
+    } else {
+      resolve();
+    }
+  });
 }
 
 /** Thay [sound:file.mp3] và link audio http(s) → nút 🔊 (Anki / HyperTTS) */

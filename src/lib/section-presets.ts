@@ -1,5 +1,5 @@
 import type { FieldDefEntry } from "@/lib/field-defs";
-import { DEFAULT_FIELD_SETTINGS, serializeFieldDefEntries } from "@/lib/field-defs";
+import { DEFAULT_FIELD_SETTINGS, resolveFieldDefEntries, serializeFieldDefEntries } from "@/lib/field-defs";
 import type { HskCategoryId } from "@/lib/hsk-levels";
 
 export type SectionPreset = {
@@ -20,40 +20,64 @@ function field(
 
 const BASE_CARD_CSS = `.card {
   text-align: center;
-  padding: 1rem 1.25rem;
+  padding: 1.5rem 1.25rem;
   width: 100%;
+  min-height: 100%;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.card .hint {
+  margin-top: auto;
+  padding-top: 1.25rem;
+  flex-shrink: 0;
 }
 .hanzi, .hanzi-ref, .answer-cn {
-  font-size: 2.25rem;
+  font-size: clamp(2rem, 6vw, 2.75rem);
   font-weight: 600;
   color: #1c1917;
   line-height: 1.3;
+  text-align: center;
+  width: 100%;
 }
-.meaning, .explain {
-  font-size: 1.25rem;
-  color: #047857;
+.card.back .meaning,
+.card.front .meaning {
+  font-size: clamp(2rem, 6vw, 2.75rem);
+  color: #1c1917;
   font-weight: 600;
-  line-height: 1.5;
-  text-align: left;
+  line-height: 1.35;
+  text-align: center;
+  width: 100%;
+}
+.explain {
+  font-size: clamp(2rem, 6vw, 2.75rem);
+  color: #1c1917;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  width: 100%;
 }
 .pinyin {
-  font-size: 1.125rem;
+  font-size: clamp(1.125rem, 3.5vw, 1.35rem);
   color: #78716c;
-  margin-top: 0.35rem;
+  margin-top: 0.5rem;
+  text-align: center;
+  width: 100%;
 }
 .meta-row {
-  font-size: 0.95rem;
+  font-size: 1rem;
   color: #57534e;
   margin-top: 0.5rem;
   text-align: left;
 }
 .example, .note {
-  font-size: 0.95rem;
+  font-size: 1rem;
   color: #57534e;
-  margin-top: 0.75rem;
+  margin-top: 0.85rem;
   text-align: left;
-  line-height: 1.55;
+  line-height: 1.6;
   white-space: pre-line;
 }
 .hint {
@@ -62,8 +86,8 @@ const BASE_CARD_CSS = `.card {
   margin-top: 1.5rem;
 }
 .hanzi-ref {
-  font-size: 1.65rem;
-  margin-top: 0.75rem;
+  font-size: 2rem;
+  margin-top: 0.85rem;
   opacity: 0.85;
 }`;
 
@@ -113,31 +137,32 @@ const VOCABULARY_PRESET: SectionPreset = {
   ],
 };
 
-/** Ngữ pháp */
+/** Ngữ pháp — 7 cột Excel + MÃ + ÂM THANH (không có ẢNH) */
 const GRAMMAR_PRESET: SectionPreset = {
   noteTypeLabel: "NGỮ PHÁP",
   fieldDefs: [
-    field("CẤU TRÚC", { sortField: true, fontSize: 24, description: "Cấu trúc / mẫu câu tiếng Trung" }),
+    field("CHỮ HÁN", { sortField: true, fontSize: 24, description: "Câu tiếng Trung" }),
     field("PINYIN", { fontSize: 18 }),
-    field("GIẢI THÍCH", { fontSize: 20, description: "Giải thích tiếng Việt", htmlEditor: true }),
-    field("VÍ DỤ", { description: "Câu ví dụ — Trung / Pinyin / Việt", htmlEditor: true }),
-    field("GHI CHÚ", { htmlEditor: true, collapse: true }),
-    field("ẢNH", { description: "Paste ảnh trực tiếp (Ctrl+V)" }),
-    field("ÂM THANH"),
+    field("NGHĨA TIẾNG VIỆT", { fontSize: 20, description: "Nghĩa tiếng Việt", htmlEditor: true }),
+    field("CẤU TRÚC", { fontSize: 18, description: "Công thức ngữ pháp", htmlEditor: true }),
+    field("CÁCH DÙNG", { fontSize: 18, description: "Cách dùng", htmlEditor: true }),
+    field("ĐIỂM NGỮ PHÁP", { fontSize: 18, description: "Điểm ngữ pháp", htmlEditor: true }),
+    field("MÃ", { fontSize: 14, description: "Cột STT cuối file (NP1, NP2…)" }),
+    field("ÂM THANH", { description: "Link mp3 hoặc [sound:ten-file.mp3]" }),
   ],
   frontTemplate: `<div class="card front">
-  <div class="explain">{{Back}}</div>
-  {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
-  {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
+  <div class="answer-cn">{{CHỮ HÁN}}</div>
+  {{#PINYIN}}<div class="pinyin">{{PINYIN}}</div>{{/PINYIN}}
+  {{#ÂM THANH}}<div class="card-audio">{{ÂM THANH}}</div>{{/ÂM THANH}}
   <p class="hint">Enter / Space — lật thẻ</p>
 </div>`,
   backTemplate: `<div class="card back">
-  <div class="answer-cn">{{Front}}</div>
-  {{#Pinyin}}<div class="pinyin">{{Pinyin}}</div>{{/Pinyin}}
-  {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
-  {{#VÍ DỤ}}<div class="example"><strong>Ví dụ:</strong><br>{{VÍ DỤ}}</div>{{/VÍ DỤ}}
-  {{#GHI CHÚ}}<div class="note">{{GHI CHÚ}}</div>{{/GHI CHÚ}}
-  {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
+  <div class="meaning">{{NGHĨA TIẾNG VIỆT}}</div>
+  {{#PINYIN}}<div class="pinyin">{{PINYIN}}</div>{{/PINYIN}}
+  {{#CẤU TRÚC}}<div class="example"><strong>Cấu trúc:</strong> {{CẤU TRÚC}}</div>{{/CẤU TRÚC}}
+  {{#CÁCH DÙNG}}<div class="note"><strong>Cách dùng:</strong> {{CÁCH DÙNG}}</div>{{/CÁCH DÙNG}}
+  {{#ĐIỂM NGỮ PHÁP}}<div class="note"><strong>Điểm ngữ pháp:</strong> {{ĐIỂM NGỮ PHÁP}}</div>{{/ĐIỂM NGỮ PHÁP}}
+  {{#ÂM THANH}}<div class="card-audio">{{ÂM THANH}}</div>{{/ÂM THANH}}
 </div>`,
   cardCss: BASE_CARD_CSS,
   cardTypes: [{ id: "trung_viet", label: "Trung → Việt", ord: 0 }],
@@ -226,6 +251,41 @@ export function courseDefaultsForSection(section: string) {
   };
 }
 
+/** Gộp trường preset còn thiếu (vd: ÂM THANH) vào fieldDefs đã lưu */
+export function resolveFieldDefEntriesForCourse(
+  section: string,
+  fieldDefsRaw: string | null | undefined,
+): FieldDefEntry[] {
+  const preset = getSectionPreset(section);
+  if (courseNeedsPresetFields(section, fieldDefsRaw ?? null)) {
+    return preset.fieldDefs;
+  }
+  const presetNames = new Set(preset.fieldDefs.map((f) => f.name));
+  let existing = resolveFieldDefEntries(fieldDefsRaw);
+  if (section === "grammar") {
+    existing = existing.filter((e) => e.name !== "ẢNH");
+  }
+  const names = new Set(existing.map((e) => e.name));
+  const merged = [...existing];
+  for (const presetField of preset.fieldDefs) {
+    if (!names.has(presetField.name)) {
+      merged.push(presetField);
+      names.add(presetField.name);
+    }
+  }
+  if (section === "grammar") {
+    return merged.filter((e) => presetNames.has(e.name));
+  }
+  return merged;
+}
+
+export function serializedCourseFieldDefs(
+  section: string,
+  fieldDefsRaw: string | null | undefined,
+): string {
+  return serializeFieldDefEntries(resolveFieldDefEntriesForCourse(section, fieldDefsRaw));
+}
+
 /** Bộ thẻ cũ / import lỗi — thiếu trường chuẩn của mục học */
 export function courseNeedsPresetFields(section: string, fieldDefsRaw: string | null): boolean {
   const anchor = getSectionPreset(section).fieldDefs[0]?.name;
@@ -237,7 +297,16 @@ export function courseNeedsPresetFields(section: string, fieldDefsRaw: string | 
     const names = arr.map((item) =>
       typeof item === "string" ? item.trim() : (item as { name?: string }).name?.trim() ?? "",
     );
-    return !names.includes(anchor) || (section === "vocabulary" && names.includes("CHỮ HÁN"));
+    return !names.includes(anchor) ||
+      (section === "vocabulary" && names.includes("CHỮ HÁN")) ||
+      (section === "grammar" &&
+        (!names.includes("CHỮ HÁN") ||
+          !names.includes("CÁCH DÙNG") ||
+          !names.includes("ÂM THANH") ||
+          names.includes("GIẢI THÍCH") ||
+          names.includes("VÍ DỤ") ||
+          names.includes("GHI CHÚ") ||
+          names.includes("ẢNH")));
   } catch {
     return true;
   }
@@ -270,7 +339,11 @@ export const IMPORT_FIELD_ALIASES: Record<string, string> = {
   "vi du": "Ví dụ",
   "cau truc": "CẤU TRÚC",
   "mau cau": "CẤU TRÚC",
-  "giai thich": "GIẢI THÍCH",
+  "cach dung": "CÁCH DÙNG",
+  "diem ngu phap": "ĐIỂM NGỮ PHÁP",
+  "ma ngu phap": "MÃ",
+  ma: "MÃ",
+  "giai thich": "NGHĨA TIẾNG VIỆT",
   "manh cau": "MẢNH CÂU",
   "cac manh": "MẢNH CÂU",
   "cau dung": "CÂU ĐÚNG",
@@ -303,8 +376,8 @@ export function coreFieldForSection(
       "ÂM THANH": "audioUrl",
     },
     grammar: {
-      "CẤU TRÚC": "front",
-      "GIẢI THÍCH": "back",
+      "CHỮ HÁN": "front",
+      "NGHĨA TIẾNG VIỆT": "back",
       PINYIN: "pinyin",
       "ÂM THANH": "audioUrl",
     },
@@ -328,22 +401,7 @@ export function importFieldNamesForSection(
   section: string,
   courseFieldDefsRaw?: string | null,
 ): string[] {
-  const preset = getSectionPreset(section);
-  const presetNames = preset.fieldDefs.map((f) => f.name);
-
-  if (courseFieldDefsRaw?.trim() && !courseNeedsPresetFields(section, courseFieldDefsRaw)) {
-    try {
-      const arr = JSON.parse(courseFieldDefsRaw) as unknown;
-      if (Array.isArray(arr) && arr.length > 0) {
-        const names = arr.map((item) =>
-          typeof item === "string" ? item.trim() : (item as { name?: string }).name?.trim() ?? "",
-        ).filter(Boolean);
-        if (names.length > 0) return names;
-      }
-    } catch {
-      /* fallback preset */
-    }
-  }
-
-  return presetNames;
+  const entries = resolveFieldDefEntriesForCourse(section, courseFieldDefsRaw);
+  if (entries.length > 0) return entries.map((e) => e.name);
+  return getSectionPreset(section).fieldDefs.map((f) => f.name);
 }

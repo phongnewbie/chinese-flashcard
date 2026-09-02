@@ -27,6 +27,7 @@ import {
   usesRichEditorField,
 } from "@/lib/paste-image";
 import "./anki-browse.css";
+import { toSoundTag, resolveSoundPlayUrl, playAudioOrTts } from "@/lib/anki-sound";
 
 type Props = {
   courseId: string;
@@ -225,9 +226,17 @@ export function AnkiBrowse({
   };
 
   const onPickImageFile = (file: File | null) => {
-    const field = focusedFieldRef.current;
-    if (!file || !field) {
-      if (!field) onMsg("Chọn trường cần chèn ảnh trước (click vào ô nhập)");
+    if (!file) return;
+    let field = focusedFieldRef.current;
+    if (!field) {
+      field =
+        fields.find((x) => x.label === "ẢNH" || x.isImage) ??
+        fields.find((x) => x.label === "GHI CHÚ" || x.multiline) ??
+        fields[0] ??
+        null;
+    }
+    if (!field) {
+      onMsg("Chọn một thẻ trước khi chèn ảnh");
       return;
     }
     void attachImageToField(file, field);
@@ -235,7 +244,15 @@ export function AnkiBrowse({
 
   const saveNote = async () => {
     const cardId = selected?.id ?? selectedId;
-    if (!cardId) return;
+    if (!cardId) {
+      onMsg("Chọn một thẻ trước khi lưu");
+      return;
+    }
+
+    if (!dirty) {
+      onMsg("Thẻ đã ở trạng thái mới nhất");
+      return;
+    }
 
     if (!selected && !pendingSelectRef.current) {
       onMsg("Thẻ không còn trong danh sách — đang tải lại…");
@@ -472,6 +489,42 @@ export function AnkiBrowse({
       const cleaned = s.replace(/\bflag:\d\b/gi, "").trim();
       return `${cleaned} flag:${n}`.trim() + " ";
     });
+    setCheckedIds(new Set());
+  };
+
+  const insertAudioTag = () => {
+    let f = focusedFieldRef.current;
+    if (!f) {
+      f =
+        fields.find((x) => x.label === "ÂM THANH" || x.label === "Audio" || x.key === "audioUrl") ??
+        fields[0] ??
+        null;
+    }
+    if (!f) {
+      onMsg("Chọn một thẻ trước khi chèn audio");
+      return;
+    }
+    const raw = window.prompt("Nhập link MP3 (https://…) hoặc tên file đã upload:");
+    if (!raw?.trim()) return;
+    const tag = /\[sound:/i.test(raw) || /^https?:\/\//i.test(raw) ? raw.trim() : toSoundTag(raw.trim());
+    updateField(f.key, f.value?.trim() ? `${f.value.trim()} ${tag}` : tag);
+    setDirty(true);
+    onMsg(`Đã chèn âm thanh vào trường ${f.label}`);
+  };
+
+  const previewAudioField = () => {
+    const f = focusedFieldRef.current;
+    const val =
+      f?.value?.trim() ||
+      selected?.audioUrl ||
+      fields.find((x) => x.label === "ÂM THANH" || x.key === "audioUrl")?.value?.trim() ||
+      "";
+    const chineseText =
+      fields.find((x) => x.label === "Tiếng Trung" || x.label === "CẤU TRÚC" || x.key === "front")?.value?.trim() ||
+      selected?.front ||
+      "";
+    void playAudioOrTts(val, chineseText);
+    onMsg(val ? "Đang phát âm thanh…" : "Đang phát âm tiếng Trung qua giọng đọc TTS…");
   };
 
   const cardAction = async (body: Record<string, unknown>) => {
@@ -524,9 +577,6 @@ export function AnkiBrowse({
         <button type="button" className="anki-win-menu-btn" onClick={() => void addNote()}>
           + Thêm thẻ
         </button>
-        <button type="button" className="anki-win-menu-btn" onClick={() => onOpenCardTypes?.() ?? onOpenSettings?.()}>
-          Kiểu thẻ
-        </button>
         <button type="button" className="anki-win-menu-btn" onClick={() => onOpenSettings?.()}>
           Mẫu thẻ
         </button>
@@ -546,11 +596,36 @@ export function AnkiBrowse({
           <div className="anki-sidebar-scroll">
           {!sidebarFilter || /today|due|added|edited|studied/i.test(sidebarFilter) ? (
             <>
-          <h4>Today</h4>
-          <button type="button" className="anki-sidebar-item">Due</button>
-          <button type="button" className="anki-sidebar-item">Added</button>
-          <button type="button" className="anki-sidebar-item">Edited</button>
-          <button type="button" className="anki-sidebar-item">Studied</button>
+          <h4>Hôm nay</h4>
+          <button
+            type="button"
+            className={`anki-sidebar-item ${cardState === "review" ? "sel" : ""}`}
+            onClick={() => { setCardState("review"); setSearch(""); setSectionFilter(""); setCheckedIds(new Set()); }}
+          >
+            Due
+          </button>
+          <button
+            type="button"
+            className={`anki-sidebar-item ${cardState === "new" ? "sel" : ""}`}
+            onClick={() => { setCardState("new"); setSearch(""); setSectionFilter(""); setCheckedIds(new Set()); }}
+          >
+            Added
+          </button>
+          <button
+            type="button"
+            className={`anki-sidebar-item ${cardState === "learning" ? "sel" : ""}`}
+            onClick={() => { setCardState("learning"); setSearch(""); setSectionFilter(""); setCheckedIds(new Set()); }}
+          >
+            Learning
+          </button>
+          <button
+            type="button"
+            className={`anki-sidebar-item ${cardState === "review" && search.includes("studied:") ? "sel" : ""}`}
+            onClick={() => { setCardState("review"); setSearch("studied:today "); setCheckedIds(new Set()); }}
+            title="Thẻ đã ôn (review)"
+          >
+            Studied
+          </button>
             </>
           ) : null}
 
@@ -764,7 +839,7 @@ export function AnkiBrowse({
                       <option key={s.id} value={s.id}>{sectionLabel(s.id)}</option>
                     ))}
                   </select>
-                  <button type="button" className="anki-win-save" disabled={!dirty || saving} onClick={() => void saveNote()}>
+                  <button type="button" className="anki-win-save" disabled={saving} onClick={() => void saveNote()}>
                     {saving ? "…" : "Lưu"}
                   </button>
                   <button
@@ -780,27 +855,13 @@ export function AnkiBrowse({
               </div>
 
               <div className="anki-win-fmt">
-                <button type="button" title="Settings">⚙</button>
-                <span className="sep" />
-                <button type="button"><b>B</b></button>
-                <button type="button"><i>I</i></button>
-                <button type="button"><u>U</u></button>
-                <button type="button">x²</button>
-                <button type="button">x₂</button>
-                <span className="sep" />
-                <button type="button" className="red-a">A</button>
-                <button type="button">▮</button>
-                <span className="sep" />
-                <button type="button">☰</button>
-                <button type="button">•</button>
-                <button type="button">🔗</button>
                 <button
                   type="button"
                   title="Chèn ảnh (hoặc Ctrl+V sau khi copy ảnh)"
                   disabled={imageUploading}
                   onClick={() => imageInputRef.current?.click()}
                 >
-                  🖼
+                  🖼 Ảnh
                 </button>
                 <input
                   ref={imageInputRef}
@@ -813,10 +874,12 @@ export function AnkiBrowse({
                     e.target.value = "";
                   }}
                 />
-                <button type="button">♪</button>
-                <button type="button">fx</button>
-                <span className="sep" />
-                <button type="button">&lt;/&gt;</button>
+                <button type="button" title="Chèn [sound:…] vào trường đang chọn" onClick={insertAudioTag}>
+                  ♪ Âm thanh
+                </button>
+                <button type="button" title="Nghe thử trường đang chọn" onClick={previewAudioField}>
+                  ▶ Nghe
+                </button>
               </div>
 
               <div className="anki-win-fields">
@@ -825,12 +888,15 @@ export function AnkiBrowse({
                   .map((f) => (
                     <div key={f.key} className="anki-field-block">
                       <div className="anki-field-head">
-                        <span className="anki-field-chev">▾</span>
                         <span className="anki-field-title">{f.label}</span>
-                        <span className="anki-field-font-badge">
+                        <button
+                          type="button"
+                          className="anki-field-font-badge hover:underline cursor-pointer bg-transparent border-0"
+                          onClick={() => setFieldsDialogOpen(true)}
+                          title="Click để đổi font chữ / cỡ chữ trường này"
+                        >
                           {f.fontFamily ?? "Arial"} · {f.fontSize ?? 20}px
-                        </span>
-                        <span className="anki-field-code">&lt;/&gt;</span>
+                        </button>
                       </div>
                       <div className="anki-field-body">
                         {fieldUsesImageEditor(f.label, f.value, f.isImage) ? (

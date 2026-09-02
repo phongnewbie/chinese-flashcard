@@ -6,7 +6,7 @@ import {
   resolveFieldNames,
   serializeFieldDefEntries,
 } from "@/lib/field-defs";
-import { getSectionPreset } from "@/lib/section-presets";
+import { getSectionPreset, courseNeedsPresetFields, serializedCourseFieldDefs } from "@/lib/section-presets";
 import { firstAudioInText, parseSoundFilename, toSoundTag } from "@/lib/anki-sound";
 import { storeAudioReference } from "@/lib/import-cards";
 import { isImageFieldLabel } from "@/lib/paste-image";
@@ -28,12 +28,16 @@ export const REQUIRED_NOTE_FIELDS = new Set(["Tiếng Trung", "Nghĩa tiếng Vi
 
 const MULTILINE_LABELS = new Set([
   "Nghĩa tiếng Việt",
+  "NGHĨA TIẾNG VIỆT",
   "Đặt câu",
   "NGHĨA",
   "VÍ DỤ",
   "ĐẶT CÂU",
   "GIẢI THÍCH",
   "GHI CHÚ",
+  "CẤU TRÚC",
+  "CÁCH DÙNG",
+  "ĐIỂM NGỮ PHÁP",
   "CÁCH NHỚ",
   "CÁCH VIẾT",
 ]);
@@ -52,7 +56,9 @@ export function fieldDefsRawForSection(
 ): string {
   if (section === coursePrimarySection) {
     const raw = localOverride ?? courseFieldDefsRaw;
-    if (raw?.trim()) return raw;
+    if (raw?.trim() && !courseNeedsPresetFields(section, raw)) {
+      return serializedCourseFieldDefs(section, raw);
+    }
   }
   return serializeFieldDefEntries(getSectionPreset(section).fieldDefs);
 }
@@ -104,12 +110,12 @@ export type FlashcardRecord = {
 const CORE_MAP: Record<string, { key: string; multiline?: boolean }> = {
   "Tiếng Trung": { key: "front" },
   "CHỮ HÁN": { key: "front" },
-  "CẤU TRÚC": { key: "front" },
   "MẢNH CÂU": { key: "front" },
   "TÌNH HUỐNG": { key: "front" },
   Pinyin: { key: "pinyin" },
   PINYIN: { key: "pinyin" },
   "Nghĩa tiếng Việt": { key: "back", multiline: true },
+  "NGHĨA TIẾNG VIỆT": { key: "back", multiline: true },
   NGHĨA: { key: "back", multiline: true },
   "GIẢI THÍCH": { key: "back", multiline: true },
   "CÂU ĐÚNG": { key: "back", multiline: true },
@@ -122,7 +128,21 @@ const LEGACY_EXTRA_KEYS: Record<string, string[]> = {
   "Nghĩa hán việt": ["HÁN VIỆT", "Nghĩa hán việt"],
   "Loại từ": ["LOẠI TỪ", "Loại từ"],
   "Đặt câu": ["ĐẶT CÂU", "Đặt câu", "VÍ DỤ"],
+  "NGHĨA TIẾNG VIỆT": ["GIẢI THÍCH", "Nghĩa tiếng Việt"],
+  "CẤU TRÚC": ["VÍ DỤ"],
+  "CÁCH DÙNG": ["GHI CHÚ"],
 };
+
+const GRAMMAR_LEGACY_EXTRA_HIDE = new Set([
+  "GIẢI THÍCH",
+  "VÍ DỤ",
+  "GHI CHÚ",
+  "Giải thích",
+  "Ví dụ",
+  "Ghi chú",
+  "Audio",
+  "Âm thanh",
+]);
 
 export function buildNoteFieldRows(
   card: FlashcardRecord,
@@ -156,6 +176,7 @@ export function buildNoteFieldRows(
 
   for (const label of Object.keys(extras)) {
     if (seen.has(label) || label === "Tags" || label === "tags") continue;
+    if (card.section === "grammar" && GRAMMAR_LEGACY_EXTRA_HIDE.has(label)) continue;
     seen.add(label);
     const style = getFieldStyle(entries, label);
     rows.push({
@@ -260,7 +281,12 @@ export function noteFieldsToCardPayload(
   return {
     section,
     front: get("front") || getLabel("Tiếng Trung") || getLabel("CHỮ HÁN"),
-    back: get("back") || getLabel("Nghĩa tiếng Việt") || getLabel("NGHĨA"),
+    back:
+      get("back") ||
+      getLabel("NGHĨA TIẾNG VIỆT") ||
+      getLabel("Nghĩa tiếng Việt") ||
+      getLabel("GIẢI THÍCH") ||
+      getLabel("NGHĨA"),
     pinyin: get("pinyin") || getLabel("Pinyin") || getLabel("PINYIN") || null,
     audioUrl: storeAudioReference(audio),
     extraFields: stringifyExtraFields(extras),

@@ -87,12 +87,17 @@ export function sampleCardForSection(section: string) {
 
   if (section === "grammar") {
     return {
-      front: "是...的",
-      back: "Cấu trúc nhấn mạnh",
-      pinyin: "shì...de",
+      front: "她在看书。",
+      back: "Cô ấy đang đọc sách.",
+      pinyin: "tā zài kànshū",
       audioUrl: null,
       section,
-      extraFields: JSON.stringify({ "VÍ DỤ": "我是昨天来的。 / Wǒ shì zuótiān lái de / Tôi đến hôm qua." }),
+      extraFields: JSON.stringify({
+        "CẤU TRÚC": "Chủ ngữ + 在 + Địa điểm + vị ngữ",
+        "CÁCH DÙNG": "Để cập đến hiện tại, mô tả hành động",
+        "ĐIỂM NGỮ PHÁP": "Diễn tả hành động đang diễn ra với '在'",
+        MÃ: "NP1",
+      }),
     };
   }
 

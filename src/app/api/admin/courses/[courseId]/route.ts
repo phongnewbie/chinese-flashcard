@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/api-auth";
 import { serializeFieldDefEntries, type FieldDefEntry } from "@/lib/field-defs";
-import { courseDefaultsForSection, courseNeedsPresetFields } from "@/lib/section-presets";
+import { courseDefaultsForSection, courseNeedsPresetFields, serializedCourseFieldDefs } from "@/lib/section-presets";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -19,12 +19,18 @@ export async function GET(_req: Request, context: RouteContext) {
   if (!course) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const section = course.primarySection ?? "vocabulary";
-  if (courseNeedsPresetFields(section, course.fieldDefs)) {
+  const mergedFieldDefs = serializedCourseFieldDefs(section, course.fieldDefs);
+  const needsFieldUpdate =
+    courseNeedsPresetFields(section, course.fieldDefs) ||
+    mergedFieldDefs !== (course.fieldDefs ?? "");
+  if (needsFieldUpdate) {
     const defaults = courseDefaultsForSection(section);
     course = await prisma.course.update({
       where: { id: courseId },
       data: {
-        fieldDefs: defaults.fieldDefs,
+        fieldDefs: courseNeedsPresetFields(section, course.fieldDefs)
+          ? defaults.fieldDefs
+          : mergedFieldDefs,
         frontTemplate: course.frontTemplate?.trim() ? undefined : defaults.frontTemplate,
         backTemplate: course.backTemplate?.trim() ? undefined : defaults.backTemplate,
         cardCss: course.cardCss?.trim() ? undefined : defaults.cardCss,
