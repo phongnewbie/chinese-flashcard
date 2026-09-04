@@ -291,16 +291,18 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
 
-  const playAudio = (url?: string | null, textFallback?: string | null) => {
+  const playAudio = (url?: string | null, textFallback?: string | null, lang = "zh-CN") => {
     const fallback =
       textFallback ||
       fields?.["Tiếng Trung"] ||
+      fields?.["CHỮ HÁN"] ||
       fields?.["CẤU TRÚC"] ||
       fields?.["CÂU ĐÚNG"] ||
+      fields?.["CÂU TRẢ LỜI"] ||
       fields?.["Front"] ||
       current?.front ||
       "";
-    void playAudioOrTts(url, fallback);
+    void playAudioOrTts(url, fallback, lang);
   };
 
 
@@ -413,6 +415,42 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
     el.addEventListener("click", onClick);
     return () => el.removeEventListener("click", onClick);
   }, [flipped, current?.id, fields]);
+
+  useEffect(() => {
+    if (phase !== "study" || !current || !fields) return;
+
+    const audioUrl =
+      fields["ÂM THANH"] ||
+      fields.Audio ||
+      current.audioUrl ||
+      null;
+
+    if (section === "grammar") {
+      if (!flipped) {
+        const vi =
+          fields["NGHĨA TIẾNG VIỆT"] ||
+          fields["Nghĩa tiếng Việt"] ||
+          fields.Back ||
+          current.back ||
+          "";
+        playAudio(null, vi, "vi-VN");
+      } else {
+        const cn = fields["CHỮ HÁN"] || fields["Tiếng Trung"] || fields.Front || current.front || "";
+        playAudio(audioUrl, cn, "zh-CN");
+      }
+      return;
+    }
+
+    if (section === "common" && flipped) {
+      const cn =
+        fields["CÂU TRẢ LỜI"] ||
+        fields["Tiếng Trung"] ||
+        fields.Back ||
+        current.back ||
+        "";
+      playAudio(audioUrl, cn, "zh-CN");
+    }
+  }, [phase, section, flipped, current?.id, fields]);
 
   useEffect(() => {
     if (phase === "study") focusStudy();

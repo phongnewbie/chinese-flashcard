@@ -261,9 +261,19 @@ function applyPresetFields(
   if (!back && fields[backLabel]) back = fields[backLabel].trim();
 
   if (/^\d+$/.test(front) && front.length <= 4) {
-    const structure = fields[frontLabel]?.trim() ?? fields["CHỮ HÁN"]?.trim() ?? "";
-    if (!structure || /^\d+$/.test(structure)) front = "";
+    const altFront =
+      fields[frontLabel]?.trim() ??
+      fields["CHỮ HÁN"]?.trim() ??
+      fields["Tiếng Trung"]?.trim() ??
+      "";
+    if (altFront && !/^\d+$/.test(altFront)) front = altFront;
+    else if (/^\d+$/.test(front)) front = "";
   }
+
+  const meaningfulValues = Object.entries(fields)
+    .filter(([name]) => !SKIP_HEADERS.has(normHeader(name)))
+    .map(([, v]) => v.trim())
+    .filter((v) => v && !/^\d+$/.test(v));
 
   if (section === "grammar") {
     if (!front) front = fields["CHỮ HÁN"]?.trim() || "";
@@ -277,16 +287,31 @@ function applyPresetFields(
     if (back && !front) front = fields["CHỮ HÁN"]?.trim() || back;
   }
 
-  if (!front && !back) return null;
-  if (!front || !back) {
-    if (section === "grammar" || section === "common") {
-      if (!front) front = back;
-      if (!back) back = front;
+  if (!front && !back) {
+    if (meaningfulValues.length >= 2) {
+      front = meaningfulValues[0] ?? "";
+      back = meaningfulValues[1] ?? "";
+    } else if (meaningfulValues.length === 1) {
+      front = meaningfulValues[0] ?? "";
+      back = meaningfulValues[0] ?? "";
     } else {
       return null;
     }
   }
-  if (/^\d+$/.test(front) && front.length <= 4 && !back.trim()) return null;
+  if (!front || !back) {
+    if (section === "grammar" || section === "common") {
+      if (!front) front = back;
+      if (!back) back = front;
+    } else if (meaningfulValues.length >= 2) {
+      if (!front) front = meaningfulValues[0] ?? "";
+      if (!back) back = meaningfulValues[1] ?? meaningfulValues[0] ?? "";
+    } else {
+      return null;
+    }
+  }
+  if (/^\d+$/.test(front) && front.length <= 4 && !back.trim() && meaningfulValues.length === 0) {
+    return null;
+  }
 
   if (!audioUrl) {
     for (const value of Object.values(fields)) {
@@ -365,11 +390,11 @@ function findHeaderRow(
   fieldNames: string[],
   section: StudySectionId,
 ): number {
-  if (rawRows.length === 0) return 0;
+  if (rawRows.length === 0) return -1;
   const row0 = ((rawRows[0] as string[]) || []).map((c) => String(c ?? "").trim());
   if (rowLooksLikeHeader(row0, fieldNames, section)) return 0;
 
-  for (let r = 0; r < Math.min(rawRows.length, 5); r++) {
+  for (let r = 1; r < Math.min(rawRows.length, 8); r++) {
     const row = rawRows[r];
     if (!Array.isArray(row)) continue;
     const cells = row.map((c) => String(c ?? "").trim());
@@ -377,7 +402,7 @@ function findHeaderRow(
     if (nonEmpty.length < 2) continue;
     if (rowLooksLikeHeader(cells, fieldNames, section)) return r;
   }
-  return 0;
+  return -1;
 }
 
 export function parseExcelBuffer(
@@ -418,18 +443,24 @@ export function parseExcelBuffer(
     if (rawRows.length === 0) continue;
 
     const headerIdx = findHeaderRow(rawRows as string[][], sheetFieldNames, sheetSection);
-    const headers = ((rawRows[headerIdx] as string[]) || []).map((h) => String(h ?? "").trim());
+    const hasHeader = headerIdx >= 0;
+    const headers = hasHeader
+      ? ((rawRows[headerIdx] as string[]) || []).map((h) => String(h ?? "").trim())
+      : sheetFieldNames.map((name, i) => name || `Cột ${i + 1}`);
     const columnMap = buildColumnMapping(headers, sheetFieldNames, sheetSection);
 
     if (columnMap.size > 0 && Object.keys(columnMapping).length === 0) {
-      columnMapping = mappingToRecord(headers, columnMap);
-      unmappedColumns = headers
-        .map((h, i) => ({ h: h.trim(), i }))
-        .filter(({ h, i }) => h && !columnMap.has(i))
-        .map(({ h }) => h);
+      columnMapping = mappingToRecord(hasHeader ? headers : sheetFieldNames, columnMap);
+      unmappedColumns = hasHeader
+        ? headers
+            .map((h, i) => ({ h: h.trim(), i }))
+            .filter(({ h, i }) => h && !columnMap.has(i))
+            .map(({ h }) => h)
+        : [];
     }
 
-    for (let i = headerIdx + 1; i < rawRows.length; i++) {
+    const dataStart = hasHeader ? headerIdx + 1 : 0;
+    for (let i = dataStart; i < rawRows.length; i++) {
       const rowArr = rawRows[i] as string[];
       if (!Array.isArray(rowArr)) continue;
 

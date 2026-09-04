@@ -14,7 +14,7 @@ import {
   type DeckStats,
 } from "@/components/anki-deck-overview";
 import { previewIntervals } from "@/lib/srs";
-import { playAudioOrTts, resolveSoundPlayUrl } from "@/lib/anki-sound";
+import { playAudioOrTts, playAudioSequence, resolveSoundPlayUrl } from "@/lib/anki-sound";
 
 const SECTION_UI: Record<
   "vocabulary" | "grammar" | "common",
@@ -74,6 +74,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(true);
   const shellRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const onStatsRef = useRef(onStats);
   onStatsRef.current = onStats;
 
@@ -108,6 +109,10 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
     void load();
   }, [load]);
 
+  const focusAnswerInput = useCallback(() => {
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
+
   const startStudy = () => {
     if (cards.length === 0) return;
     setSessionCount(0);
@@ -115,6 +120,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
     setTyped("");
     setRevealed(false);
     setPhase("study");
+    focusAnswerInput();
   };
 
   const current = phase === "study" ? cards[index] : undefined;
@@ -127,8 +133,15 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
 
   useEffect(() => {
     if (!revealed || !current) return;
-    void playAudioOrTts(current.audioUrl, current.answer);
-  }, [revealed, current?.id, current?.audioUrl, current?.answer]);
+    void playAudioSequence([
+      { audioUrl: current.audioUrl, text: current.answer, lang: "zh-CN" },
+      {
+        audioUrl: current.exampleAudioUrl,
+        text: current.example?.chinese,
+        lang: "zh-CN",
+      },
+    ]);
+  }, [revealed, current?.id, current?.audioUrl, current?.answer, current?.exampleAudioUrl, current?.example?.chinese]);
 
   const rate = async (rating: 1 | 2 | 3 | 4) => {
     if (!current || !currentRaw) return;
@@ -145,7 +158,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
       setPhase("finished");
     } else {
       setIndex(atIndex + 1);
-      requestAnimationFrame(() => shellRef.current?.focus());
+      focusAnswerInput();
     }
 
     try {
@@ -189,6 +202,12 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   rateRef.current = rate;
 
   useEffect(() => {
+    if (phase === "study" && !revealed && current) {
+      focusAnswerInput();
+    }
+  }, [phase, revealed, current?.id, focusAnswerInput]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (phase !== "study" || !current) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -200,10 +219,28 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
         target?.isContentEditable;
 
       if (!revealed) {
-        if (inTextField && e.key !== "Enter") return;
-        if (e.key === "Enter" || e.key === " ") {
+        if (e.key === "Enter" || (!inTextField && e.key === " ")) {
           e.preventDefault();
           showAnswer();
+          return;
+        }
+
+        if (!inTextField) {
+          if (e.key === "Backspace") {
+            e.preventDefault();
+            setTyped((prev) => prev.slice(0, -1));
+            focusAnswerInput();
+            return;
+          }
+          if (e.key === "Process" || e.key === "Compose") {
+            focusAnswerInput();
+            return;
+          }
+          if (e.key.length === 1) {
+            e.preventDefault();
+            setTyped((prev) => prev + e.key);
+            focusAnswerInput();
+          }
         }
         return;
       }
@@ -223,7 +260,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [revealed, current, phase, showAnswer]);
+  }, [revealed, current, phase, showAnswer, focusAnswerInput]);
 
   if (loading) {
     return <p className="text-center text-stone-500 py-12">Đang tải thẻ…</p>;
@@ -276,6 +313,11 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
       ref={shellRef}
       tabIndex={-1}
       className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none flex flex-col justify-between"
+      onPointerDown={(e) => {
+        if (!revealed && e.target === shellRef.current) {
+          focusAnswerInput();
+        }
+      }}
     >
       {/* Header pill */}
       <div className="relative px-4 pt-5 pb-2">
@@ -326,6 +368,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
 
                 <div className="max-w-md mx-auto w-full">
                   <input
+                    ref={inputRef}
                     type="text"
                     value={typed}
                     onChange={(e) => setTyped(e.target.value)}

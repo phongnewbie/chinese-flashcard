@@ -68,6 +68,12 @@ export function TemplateEditor({
       setMsg("Phải bật ít nhất 1 kiểu thẻ");
       return;
     }
+    const syncedTypes = types.map((t) => ({
+      ...t,
+      layout: t.layout === "custom" ? "default" : (t.layout ?? "default"),
+      frontTemplate: undefined,
+      backTemplate: undefined,
+    }));
     const res = await fetch(`/api/admin/courses/${courseId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -75,7 +81,7 @@ export function TemplateEditor({
         frontTemplate,
         backTemplate,
         cardCss,
-        cardTypes: serializeCourseCardTypes(types),
+        cardTypes: serializeCourseCardTypes(syncedTypes),
       }),
     });
     if (res.ok) {
@@ -113,7 +119,7 @@ export function TemplateEditor({
         <div>
           <h2 className="font-semibold">Mẫu thẻ — {preset.noteTypeLabel}</h2>
           <p className="text-sm text-stone-600 mt-1">
-            HTML/CSS hiển thị thẻ và kiểu thẻ khi học viên ôn (giống Anki Note Type).
+            Một mẫu HTML/CSS dùng chung cho mọi kiểu thẻ — chỉnh một lần, tất cả kiểu thẻ tự cập nhật (giống Anki).
           </p>
         </div>
         <div className="flex gap-3 text-xs">

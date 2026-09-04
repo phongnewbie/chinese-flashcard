@@ -6,12 +6,14 @@ import {
   AnkiSessionFinished,
   type DeckStats,
 } from "@/components/anki-deck-overview";
+import { playAudioOrTts } from "@/lib/anki-sound";
 
 type Card = {
   id: string;
   front: string;
   back: string;
   pinyin: string | null;
+  audioUrl?: string | null;
   cardType?: string;
   srs?: { isNew?: boolean; intervalDays?: number };
 };
@@ -92,6 +94,13 @@ export function SentenceOrderStudy({
   useEffect(() => {
     if (current) resetRound();
   }, [current?.id, resetRound]);
+
+  useEffect(() => {
+    if (phase !== "study" || !current) return;
+    const chinese = (current.back.split("\n")[0] ?? current.back).trim();
+    if (!chinese) return;
+    void playAudioOrTts(current.audioUrl, chinese, "zh-CN");
+  }, [phase, current?.id, current?.back, current?.audioUrl]);
 
   const submitReview = async (rating: 1 | 3) => {
     if (!current) return;

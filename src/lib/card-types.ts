@@ -49,14 +49,13 @@ function normalizeCardType(item: unknown, index: number): CardTypeDef {
     };
   }
   const o = item as CardTypeDef;
+  const layout = o.layout === "custom" ? inferLayoutFromId(o.id ?? "") : (o.layout ?? inferLayoutFromId(o.id ?? ""));
   return {
     id: o.id ?? `type_${index}`,
     label: o.label ?? o.id ?? `Kiểu ${index + 1}`,
     ord: o.ord ?? index,
     enabled: o.enabled !== false,
-    layout: o.layout ?? inferLayoutFromId(o.id ?? ""),
-    frontTemplate: o.frontTemplate ?? null,
-    backTemplate: o.backTemplate ?? null,
+    layout,
   };
 }
 
@@ -115,10 +114,7 @@ export function serializeCourseCardTypes(types: CardTypeDef[]): string {
       label: t.label,
       ord: i,
       enabled: t.enabled !== false,
-      layout: t.layout ?? inferLayoutFromId(t.id),
-      ...(t.layout === "custom" && t.frontTemplate?.trim()
-        ? { frontTemplate: t.frontTemplate, backTemplate: t.backTemplate ?? "" }
-        : {}),
+      layout: t.layout === "custom" ? inferLayoutFromId(t.id) : (t.layout ?? inferLayoutFromId(t.id)),
     })),
   );
 }

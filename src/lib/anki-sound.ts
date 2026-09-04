@@ -76,10 +76,17 @@ export function playSpeechTts(text: string, lang = "zh-CN"): Promise<void> {
   });
 }
 
-/** Phát âm thanh: ưu tiên file mp3/url, nếu lỗi 404 hoặc không có file thì tự fallback sang giọng đọc TTS tiếng Trung */
+export type AudioPlayItem = {
+  audioUrl?: string | null;
+  text?: string | null;
+  lang?: string;
+};
+
+/** Phát âm thanh: ưu tiên file mp3/url, nếu lỗi thì fallback TTS (zh-CN hoặc vi-VN) */
 export function playAudioOrTts(
   audioUrl?: string | null,
-  fallbackChineseText?: string | null,
+  fallbackText?: string | null,
+  lang = "zh-CN",
 ): Promise<void> {
   return new Promise((resolve) => {
     if (typeof window === "undefined") {
@@ -87,7 +94,7 @@ export function playAudioOrTts(
       return;
     }
 
-    const cleanText = (fallbackChineseText ?? "").replace(/<[^>]+>/g, "").trim();
+    const cleanText = (fallbackText ?? "").replace(/<[^>]+>/g, "").trim();
 
     if (audioUrl && audioUrl.trim()) {
       const src = resolveSoundPlayUrl(audioUrl);
@@ -106,7 +113,7 @@ export function playAudioOrTts(
         if (!resolved) {
           resolved = true;
           if (cleanText) {
-            void playSpeechTts(cleanText).then(resolve);
+            void playSpeechTts(cleanText, lang).then(resolve);
           } else {
             resolve();
           }
@@ -117,7 +124,7 @@ export function playAudioOrTts(
         if (!resolved) {
           resolved = true;
           if (cleanText) {
-            void playSpeechTts(cleanText).then(resolve);
+            void playSpeechTts(cleanText, lang).then(resolve);
           } else {
             resolve();
           }
@@ -127,11 +134,21 @@ export function playAudioOrTts(
     }
 
     if (cleanText) {
-      void playSpeechTts(cleanText).then(resolve);
+      void playSpeechTts(cleanText, lang).then(resolve);
     } else {
       resolve();
     }
   });
+}
+
+/** Phát lần lượt nhiều đoạn âm thanh (vd: từ vựng rồi đặt câu) */
+export async function playAudioSequence(items: AudioPlayItem[]): Promise<void> {
+  for (const item of items) {
+    const text = item.text?.trim();
+    const url = item.audioUrl?.trim();
+    if (!text && !url) continue;
+    await playAudioOrTts(url, text, item.lang ?? "zh-CN");
+  }
 }
 
 /** Thay [sound:file.mp3] và link audio http(s) → nút 🔊 (Anki / HyperTTS) */

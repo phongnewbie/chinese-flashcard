@@ -1,5 +1,5 @@
 import { parseExtraFields } from "@/lib/fields";
-import { resolveSoundPlayUrl } from "@/lib/anki-sound";
+import { firstAudioInText, resolveSoundPlayUrl } from "@/lib/anki-sound";
 import { normHeader } from "@/lib/import-cards";
 
 export type HskCardView = {
@@ -138,7 +138,10 @@ export function toHskCardView(card: {
   const rawExample = pickExtra(extras, EXAMPLE_KEYS);
   const example = rawExample ? parseExample(rawExample) : null;
   const mnemonic = pickExtra(extras, MNEMONIC_KEYS);
-  const rawExAudio = pickExtra(extras, EXAMPLE_AUDIO_KEYS);
+  const rawExAudio =
+    pickExtra(extras, EXAMPLE_AUDIO_KEYS) ||
+    (rawExample ? firstAudioInText(rawExample) : "") ||
+    "";
   const rawMainAudio = card.audioUrl?.trim() || pickExtra(extras, AUDIO_KEYS) || "";
   const exampleAudioUrl = rawExAudio ? resolveSoundPlayUrl(rawExAudio) : "";
 

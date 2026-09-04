@@ -205,15 +205,8 @@ export function getCourseTemplates(
 
 export function resolveCardTypeTemplates(
   base: { frontTemplate: string; backTemplate: string; cardCss: string },
-  cardType?: CardTypeDef | null,
+  _cardType?: CardTypeDef | null,
 ) {
-  if (cardType?.layout === "custom" && cardType.frontTemplate?.trim()) {
-    return {
-      ...base,
-      frontTemplate: cardType.frontTemplate.trim(),
-      backTemplate: cardType.backTemplate?.trim() || base.backTemplate,
-    };
-  }
   return base;
 }
 
