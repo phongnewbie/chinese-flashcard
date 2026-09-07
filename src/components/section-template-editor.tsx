@@ -83,9 +83,10 @@ export function SectionTemplateEditor({ sectionId, label, onClose }: Props) {
       <div className="w-full max-w-4xl rounded-xl border border-stone-200 bg-white p-6 shadow-xl my-8 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h2 className="font-semibold text-lg">Mẫu hiển thị — {label}</h2>
+            <h2 className="font-semibold text-lg">Mẫu thẻ (Note Type) — {label}</h2>
             <p className="text-sm text-stone-600 mt-1">
-              Chỉnh cách thẻ hiển thị cho <strong>tất cả bộ thẻ</strong> thuộc mục này (HSK1–7).
+              <strong>Một chỗ duy nhất</strong> chỉnh mặt trước, mặt sau và CSS (cỡ chữ, màu…) cho{" "}
+              <strong>tất cả bộ thẻ</strong> thuộc mục này.
               {isCustom ? (
                 <span className="text-emerald-700"> · Đang dùng mẫu tùy chỉnh</span>
               ) : (
@@ -178,7 +179,7 @@ export function SectionTemplateEditor({ sectionId, label, onClose }: Props) {
             </div>
 
             <p className="text-xs text-stone-500 border-t pt-3">
-              Mỗi bộ thẻ vẫn có thể ghi đè riêng trong ⚙ → Cài đặt → Template thẻ.
+              Giống Anki: một Note Type cho mỗi mục (Từ vựng, Ngữ pháp…). Chỉnh HTML/CSS tại đây — mọi bộ thẻ cùng loại dùng chung.
             </p>
           </>
         )}

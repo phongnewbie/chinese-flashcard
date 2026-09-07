@@ -73,6 +73,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   const [typed, setTyped] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [cardCss, setCardCss] = useState("");
   const shellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const onStatsRef = useRef(onStats);
@@ -102,6 +103,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
     };
     setStats(deckStats);
     onStatsRef.current?.(deckStats);
+    setCardCss(data.templates?.cardCss ?? "");
     setPhase("overview");
   }, [courseId, section, mode, ui.defaultTitle]);
 
@@ -312,7 +314,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
     <div
       ref={shellRef}
       tabIndex={-1}
-      className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none flex flex-col justify-between"
+      className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none"
       onPointerDown={(e) => {
         if (!revealed && e.target === shellRef.current) {
           focusAnswerInput();
@@ -329,33 +331,32 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
         </span>
       </div>
 
-      {/* Main card panel - spacious & equal uniform height */}
-      <div className="mx-4 mb-3 flex-1 flex flex-col min-h-0">
-        <div className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-5 md:p-6 shadow-sm flex flex-col flex-1">
+      {/* Main card panel — chiều cao cố định */}
+      <div className="mx-4">
+        {cardCss ? <style>{cardCss}</style> : null}
+        <div className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-5 md:p-6 shadow-sm flex flex-col">
           <div className="study-card-scroll flex-1 flex flex-col justify-center">
             {!revealed ? (
-              <div className="space-y-4 w-full my-auto py-2">
-                {current.imageUrl && (
-                  <div className="hsk-study-image-wrap my-1">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={current.imageUrl} alt="" className="hsk-study-image" />
-                  </div>
-                )}
+              <div className="space-y-3 w-full py-2">
+                <div className="study-front-slot">
+                  {current.imageUrl ? (
+                    <div className="hsk-study-image-wrap">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={current.imageUrl} alt="" className="hsk-study-image" />
+                    </div>
+                  ) : null}
+                </div>
 
-                {current.pinyin && (
-                  <div className="flex justify-center">
-                    <span className="hsk-pinyin-badge text-base md:text-lg px-4 py-1">
+                <div className="study-front-slot">
+                  {current.pinyin ? (
+                    <span className="pinyin hsk-pinyin-badge text-base md:text-lg px-4 py-1">
                       {current.pinyin}
                     </span>
-                  </div>
-                )}
+                  ) : null}
+                </div>
 
-                <div className="hsk-char-display w-full text-center py-6 md:py-8 px-4 rounded-xl bg-white/95 shadow-sm border border-stone-100 min-h-[140px] flex flex-col items-center justify-center gap-3">
-                  <div
-                    className={`font-bold text-stone-900 tracking-wide ${
-                      section === "grammar" ? "study-secondary-text" : "study-primary-text"
-                    }`}
-                  >
+                <div className="study-main-display w-full text-center px-4 rounded-xl bg-white/95 shadow-sm border border-stone-100">
+                  <div className={`meaning font-bold text-stone-900 tracking-wide`}>
                     {hints.map((h, i) => (
                       <p key={i}>
                         {hints.length > 1 ? `${i + 1}. ` : ""}
@@ -366,7 +367,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
                   {current.audioUrl && <AudioBtn url={current.audioUrl} text={hints[0]} />}
                 </div>
 
-                <div className="max-w-md mx-auto w-full">
+                <div className="max-w-md mx-auto w-full pt-1">
                   <input
                     ref={inputRef}
                     type="text"
@@ -399,16 +400,8 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
         </div>
       </div>
 
-      {/* Stats + action */}
-      <div className="px-4 pb-5 space-y-3">
-        <p className="text-center text-sm">
-          <span className="text-blue-600 font-medium">{stats.new}</span>
-          <span className="text-stone-400 mx-1">+</span>
-          <span className="text-red-500 font-medium">{stats.learning}</span>
-          <span className="text-stone-400 mx-1">+</span>
-          <span className="text-emerald-600 font-medium">{stats.due}</span>
-        </p>
-
+      {/* Nút hành động — vùng cao cố định */}
+      <div className="study-action-bar px-4 pb-5 space-y-3">
         {!revealed ? (
           <div className="flex justify-center">
             <button type="button" onClick={showAnswer} className="hsk-show-btn px-10 py-2.5 text-base">
@@ -455,7 +448,7 @@ function HskAnswerBack({
   isGrammar?: boolean;
 }) {
   const showWrongCompare = !correct && typed.trim().length > 0;
-  const mainDisplay = isGrammar ? "study-secondary-text leading-snug px-2" : "study-primary-text";
+  const mainDisplay = isGrammar ? "meaning" : "hanzi";
 
   return (
     <div className="space-y-4 w-full my-auto py-2">
@@ -468,7 +461,7 @@ function HskAnswerBack({
           </div>
         )}
         {card.pinyin && (
-          <span className="hsk-pinyin-badge text-base md:text-lg px-4 py-1">
+          <span className="pinyin hsk-pinyin-badge text-base md:text-lg px-4 py-1">
             {card.pinyin}
           </span>
         )}
@@ -483,7 +476,7 @@ function HskAnswerBack({
       ) : null}
 
       {/* Large Chinese character display */}
-      <div className="hsk-char-display w-full text-center py-6 md:py-8 px-4 rounded-xl bg-white/95 shadow-sm border border-stone-100 min-h-[140px] flex flex-col items-center justify-center">
+      <div className="study-main-display hsk-char-display w-full text-center px-4 rounded-xl bg-white/95 shadow-sm border border-stone-100">
         <span className={`${mainDisplay} font-bold text-stone-900 tracking-wide`}>{card.answer}</span>
       </div>
 

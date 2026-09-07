@@ -31,11 +31,15 @@ export async function GET(_req: Request, context: RouteContext) {
         fieldDefs: courseNeedsPresetFields(section, course.fieldDefs)
           ? defaults.fieldDefs
           : mergedFieldDefs,
-        frontTemplate: course.frontTemplate?.trim() ? undefined : defaults.frontTemplate,
-        backTemplate: course.backTemplate?.trim() ? undefined : defaults.backTemplate,
-        cardCss: course.cardCss?.trim() ? undefined : defaults.cardCss,
         cardTypes: course.cardTypes?.trim() ? undefined : defaults.cardTypes,
       },
+    });
+  }
+
+  if (course.frontTemplate?.trim() || course.backTemplate?.trim() || course.cardCss?.trim()) {
+    course = await prisma.course.update({
+      where: { id: courseId },
+      data: { frontTemplate: null, backTemplate: null, cardCss: null },
     });
   }
 

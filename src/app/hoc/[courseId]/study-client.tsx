@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { AnkiStudy } from "@/components/anki-study";
 import { HskVocabStudy } from "@/components/hsk-vocab-study";
 import { SentenceOrderStudy } from "@/components/sentence-order-study";
 import { isAccessLocked, LockScreen, TrialBanner, useAccess } from "@/components/access-ui";
 import { lockedSectionForCourse, STUDY_SECTIONS, type StudySectionId } from "@/lib/sections";
-import type { DeckStats } from "@/components/anki-deck-overview";
 
 type StudyMode = "review" | "all" | "new";
 
@@ -24,13 +23,8 @@ export function StudyClient({ courseId, title, primarySection, hskLevel }: Props
   const singleSection = lockedSection !== null;
   const [section, setSection] = useState<StudySectionId>(lockedSection ?? "vocabulary");
   const [mode, setMode] = useState<StudyMode>("review");
-  const [stats, setStats] = useState<DeckStats>({ due: 0, new: 0, queue: 0, learning: 0, total: 0 });
 
   const activeSection = singleSection ? lockedSection! : section;
-
-  const handleStats = useCallback((s: DeckStats) => {
-    setStats(s);
-  }, []);
 
   const sectionLabel = STUDY_SECTIONS.find((s) => s.id === activeSection)?.label;
 
@@ -69,10 +63,6 @@ export function StudyClient({ courseId, title, primarySection, hskLevel }: Props
         </div>
       )}
 
-      <p className="text-xs text-stone-500 text-center">
-        Mới: {stats.new} · Đang học: {stats.learning} · Ôn: {stats.due}
-      </p>
-
       <StudyStatsPanel />
 
       {activeSection === "sentence_order" ? (
@@ -84,7 +74,6 @@ export function StudyClient({ courseId, title, primarySection, hskLevel }: Props
           section={activeSection}
           mode={mode}
           onModeChange={setMode}
-          onStats={handleStats}
         />
       ) : (
         <AnkiStudy
@@ -93,7 +82,6 @@ export function StudyClient({ courseId, title, primarySection, hskLevel }: Props
           section={activeSection}
           mode={mode}
           onModeChange={setMode}
-          onStats={handleStats}
         />
       )}
     </div>

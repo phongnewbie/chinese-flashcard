@@ -4,10 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { importFieldNamesForSection } from "@/lib/section-presets";
 import { sectionLabel, type StudySectionId } from "@/lib/sections";
 import { type ImportPreview } from "@/lib/import-cards";
-import { resolveFieldDefs } from "@/lib/anki-note-fields";
 import { PersistenceBanner } from "@/components/persistence-banner";
 import { ImportFileButton } from "@/app/admin/admin-ui";
 import { TemplateEditor } from "./template-editor";
+import { SectionTemplateEditor } from "@/components/section-template-editor";
+import { categoryDeckLabel, type HskCategoryId } from "@/lib/hsk-levels";
 import { AnkiBrowse } from "./anki-browse";
 import Link from "next/link";
 
@@ -38,6 +39,7 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
   const addNoteRef = useRef<(() => void) | null>(null);
 
   const [browseRefresh, setBrowseRefresh] = useState(0);
+  const [templateDialog, setTemplateDialog] = useState(false);
 
   const reload = useCallback(async () => {
     setLoadError(null);
@@ -312,17 +314,27 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
         {tab === "settings" && (
           <div className="space-y-6">
             <TemplateEditor
-              key={`tpl-${course.id}-${course.frontTemplate?.length ?? 0}-${course.backTemplate?.length ?? 0}`}
+              key={`types-${course.id}-${course.cardTypes?.length ?? 0}`}
               courseId={courseId}
               primarySection={course.primarySection ?? "vocabulary"}
               cardTypesRaw={course.cardTypes}
-              initial={{ frontTemplate: course.frontTemplate, backTemplate: course.backTemplate, cardCss: course.cardCss }}
-              fieldNames={resolveFieldDefs(course.fieldDefs)}
               onSaved={reload}
+              onOpenSectionTemplate={() => setTemplateDialog(true)}
             />
           </div>
         )}
       </div>
+
+      {templateDialog && course.primarySection && (
+        <SectionTemplateEditor
+          sectionId={course.primarySection as HskCategoryId}
+          label={categoryDeckLabel(
+            course.primarySection as HskCategoryId,
+            course.hskLevel ?? "hsk1",
+          )}
+          onClose={() => setTemplateDialog(false)}
+        />
+      )}
     </div>
   );
 }

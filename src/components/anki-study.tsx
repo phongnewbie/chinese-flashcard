@@ -578,7 +578,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
     <div
       ref={studyRef}
       tabIndex={-1}
-      className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none flex flex-col justify-between"
+      className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none"
     >
 
       <div className="relative px-4 pt-5 pb-2">
@@ -611,7 +611,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
 
-      <div className="mx-4 mb-3 flex-1 flex flex-col min-h-0">
+      <div className="mx-4">
 
         <style>{activeTemplates.cardCss}</style>
 
@@ -627,7 +627,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
           }}
 
-          className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-4 md:p-5 shadow-sm text-left transition hover:border-emerald-400 cursor-pointer flex flex-col flex-1"
+          className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-4 md:p-5 shadow-sm text-left transition hover:border-emerald-400 cursor-pointer flex flex-col"
 
         >
 
@@ -647,23 +647,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
 
-      <div className="px-4 pb-5 space-y-3">
-
-        <p className="text-center text-sm">
-
-          <span className="text-blue-600 font-medium">{stats.new}</span>
-
-          <span className="text-stone-400 mx-1">+</span>
-
-          <span className="text-red-500 font-medium">{stats.learning}</span>
-
-          <span className="text-stone-400 mx-1">+</span>
-
-          <span className="text-emerald-600 font-medium">{stats.due}</span>
-
-        </p>
-
-
+      <div className="study-action-bar px-4 pb-5 space-y-3">
 
         {!flipped ? (
 

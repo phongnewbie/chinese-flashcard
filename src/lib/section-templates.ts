@@ -31,31 +31,15 @@ export function serializeSectionTemplates(map: SectionTemplatesMap): string {
   return JSON.stringify(map);
 }
 
-/** Mẫu hiển thị: bộ thẻ riêng → mẫu chung theo mục → preset mặc định */
+/** Mẫu hiển thị: mẫu chung theo mục học (giống Anki Note Type) → preset mặc định */
 export function resolveCourseTemplates(
   course: {
-    frontTemplate: string | null;
-    backTemplate: string | null;
-    cardCss: string | null;
     primarySection?: string | null;
   },
   globalTemplates?: SectionTemplatesMap | null,
 ): SectionTemplateSet {
   const section = course.primarySection ?? "vocabulary";
   const preset = presetTemplatesForSection(section);
-
-  const hasOwn =
-    !!course.frontTemplate?.trim() ||
-    !!course.backTemplate?.trim() ||
-    !!course.cardCss?.trim();
-
-  if (hasOwn) {
-    return {
-      frontTemplate: course.frontTemplate?.trim() || preset.frontTemplate,
-      backTemplate: course.backTemplate?.trim() || preset.backTemplate,
-      cardCss: course.cardCss?.trim() || preset.cardCss,
-    };
-  }
 
   const global = globalTemplates?.[section as HskCategoryId];
   if (global?.frontTemplate?.trim()) {

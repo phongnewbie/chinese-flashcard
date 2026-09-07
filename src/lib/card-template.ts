@@ -193,9 +193,6 @@ export function renderCardTemplate(
 
 export function getCourseTemplates(
   course: {
-    frontTemplate: string | null;
-    backTemplate: string | null;
-    cardCss: string | null;
     primarySection?: string | null;
   },
   globalSectionTemplates?: SectionTemplatesMap | null,
