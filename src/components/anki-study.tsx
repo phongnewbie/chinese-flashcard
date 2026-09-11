@@ -28,7 +28,7 @@ import {
 import type { CardTypeDef } from "@/lib/card-types";
 import { playAudioOrTts, resolveSoundPlayUrl } from "@/lib/anki-sound";
 import { sectionLabel, type StudySectionId } from "@/lib/sections";
-import { presetTemplatesForSection } from "@/lib/section-presets";
+import { presetTemplatesForSection } from "@/lib/section-templates";
 import { previewIntervals, type ReviewState } from "@/lib/srs";
 
 
