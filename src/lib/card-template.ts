@@ -24,7 +24,15 @@ export const DEFAULT_BACK_TEMPLATE = `<div class="card back">
 
 export const DEFAULT_CARD_CSS = `.card {
   text-align: center;
-  padding: 1.5rem;
+  padding: 1rem 1.25rem;
+  width: 100%;
+  min-height: 100%;
+  margin: auto 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 .hanzi, .hanzi-ref {
   font-size: 2.5rem;

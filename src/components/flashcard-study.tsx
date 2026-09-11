@@ -106,7 +106,7 @@ export function FlashcardStudy({ cards }: { cards: Card[] }) {
       <button
         type="button"
         onClick={() => setFlipped((f) => !f)}
-        className="w-full min-h-[480px] md:min-h-[520px] rounded-2xl border-2 border-[#8fad8f] bg-white p-6 md:p-8 shadow-sm text-left transition hover:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 flex flex-col justify-center cursor-pointer"
+        className="w-full h-[520px] min-h-[520px] max-h-[520px] rounded-2xl border-2 border-[#8fad8f] bg-white p-6 md:p-8 shadow-sm text-left transition hover:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 flex flex-col justify-center cursor-pointer"
       >
         {!flipped ? (
           <div className="flex flex-col items-center justify-center my-auto gap-4 text-center w-full">

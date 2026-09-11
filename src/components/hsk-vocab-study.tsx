@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   answersMatch,
-  formatHints,
   hanziiSearchUrl,
   toHskCardView,
   type HskCardView,
@@ -13,8 +12,11 @@ import {
   AnkiSessionFinished,
   type DeckStats,
 } from "@/components/anki-deck-overview";
+import { renderCardTemplate, toCardFields } from "@/lib/card-template";
+import { presetTemplatesForSection } from "@/lib/section-templates";
+import type { CardTypeDef } from "@/lib/card-types";
 import { previewIntervals } from "@/lib/srs";
-import { playAudioOrTts, playAudioSequence, resolveSoundPlayUrl } from "@/lib/anki-sound";
+import { playAudioOrTts, playAudioSequence } from "@/lib/anki-sound";
 
 const SECTION_UI: Record<
   "vocabulary" | "grammar" | "common",
@@ -61,6 +63,12 @@ type Props = {
 
 type Phase = "overview" | "study" | "finished";
 
+type StudyTemplates = {
+  frontTemplate: string;
+  backTemplate: string;
+  cardCss: string;
+};
+
 export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }: Props) {
   const ui = SECTION_UI[section];
   const [title, setTitle] = useState(ui.defaultTitle);
@@ -73,8 +81,10 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   const [typed, setTyped] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [cardCss, setCardCss] = useState("");
+  const [templates, setTemplates] = useState<StudyTemplates | null>(null);
+  const [cardTypes, setCardTypes] = useState<CardTypeDef[]>([]);
   const shellRef = useRef<HTMLDivElement>(null);
+  const cardContentRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const onStatsRef = useRef(onStats);
   onStatsRef.current = onStats;
@@ -103,7 +113,8 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
     };
     setStats(deckStats);
     onStatsRef.current?.(deckStats);
-    setCardCss(data.templates?.cardCss ?? "");
+    setTemplates(data.templates ?? null);
+    setCardTypes(data.cardTypes ?? []);
     setPhase("overview");
   }, [courseId, section, mode, ui.defaultTitle]);
 
@@ -127,6 +138,44 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
 
   const current = phase === "study" ? cards[index] : undefined;
   const currentRaw = phase === "study" ? rawCards[index] : undefined;
+
+  const currentCardType = useMemo(
+    () => cardTypes.find((t) => t.id === currentRaw?.cardType) ?? null,
+    [cardTypes, currentRaw?.cardType],
+  );
+
+  const templateFields = useMemo(
+    () => (currentRaw ? toCardFields(currentRaw, currentCardType) : null),
+    [currentRaw, currentCardType],
+  );
+
+  const activeTemplates = useMemo(() => {
+    return templates ?? presetTemplatesForSection(section);
+  }, [templates, section]);
+
+  const frontHtml = useMemo(() => {
+    if (!templateFields) return "";
+    return renderCardTemplate(activeTemplates.frontTemplate, templateFields, "front");
+  }, [activeTemplates, templateFields]);
+
+  const backHtml = useMemo(() => {
+    if (!templateFields) return "";
+    return renderCardTemplate(activeTemplates.backTemplate, templateFields, "back");
+  }, [activeTemplates, templateFields]);
+
+  useEffect(() => {
+    const el = cardContentRef.current;
+    if (!el) return;
+    const onClick = (e: MouseEvent) => {
+      const btn = (e.target as HTMLElement).closest("[data-audio]") as HTMLElement | null;
+      if (!btn) return;
+      e.stopPropagation();
+      e.preventDefault();
+      void playAudioOrTts(btn.dataset.audio, btn.dataset.text);
+    };
+    el.addEventListener("click", onClick);
+    return () => el.removeEventListener("click", onClick);
+  }, [revealed, currentRaw?.id, frontHtml, backHtml]);
 
   const showAnswer = useCallback(() => {
     setRevealed(true);
@@ -306,7 +355,6 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
     );
   }
 
-  const hints = formatHints(current.hints);
   const correct = answersMatch(typed, current.answer);
   const intervals = previewIntervals(currentRaw.srs as Parameters<typeof previewIntervals>[0]);
 
@@ -314,7 +362,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
     <div
       ref={shellRef}
       tabIndex={-1}
-      className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none"
+      className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none shrink-0 flex flex-col justify-between"
       onPointerDown={(e) => {
         if (!revealed && e.target === shellRef.current) {
           focusAnswerInput();
@@ -322,7 +370,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
       }}
     >
       {/* Header pill */}
-      <div className="relative px-4 pt-5 pb-2">
+      <div className="relative px-4 pt-5 pb-2 shrink-0">
         <div className="hsk-header-pill mx-auto max-w-md text-center py-2.5 px-6">
           {title}
         </div>
@@ -331,43 +379,21 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
         </span>
       </div>
 
-      {/* Main card panel — chiều cao cố định */}
-      <div className="mx-4">
-        {cardCss ? <style>{cardCss}</style> : null}
-        <div className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-5 md:p-6 shadow-sm flex flex-col">
-          <div className="study-card-scroll flex-1 flex flex-col justify-center">
+      {/* Main card panel — render mẫu HTML từ 🎨 mẫu */}
+      <div className="mx-4 shrink-0 flex justify-center">
+        <style>{activeTemplates.cardCss}</style>
+        <div
+          className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-4 md:p-5 shadow-sm flex flex-col w-full max-w-[48rem] h-[520px] min-h-[520px] max-h-[520px] mx-auto overflow-hidden shrink-0"
+          style={{ height: 520, minHeight: 520, maxHeight: 520, width: "100%", maxWidth: "48rem" }}
+        >
+          <div ref={cardContentRef} className="study-card-scroll flex-1 min-h-0 flex flex-col w-full h-full overflow-hidden">
             {!revealed ? (
-              <div className="space-y-3 w-full py-2">
-                <div className="study-front-slot">
-                  {current.imageUrl ? (
-                    <div className="hsk-study-image-wrap">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={current.imageUrl} alt="" className="hsk-study-image" />
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="study-front-slot">
-                  {current.pinyin ? (
-                    <span className="pinyin hsk-pinyin-badge text-base md:text-lg px-4 py-1">
-                      {current.pinyin}
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="study-main-display w-full text-center px-4 rounded-xl bg-white/95 shadow-sm border border-stone-100">
-                  <div className={`meaning font-bold text-stone-900 tracking-wide`}>
-                    {hints.map((h, i) => (
-                      <p key={i}>
-                        {hints.length > 1 ? `${i + 1}. ` : ""}
-                        {h}
-                      </p>
-                    ))}
-                  </div>
-                  {current.audioUrl && <AudioBtn url={current.audioUrl} text={hints[0]} />}
-                </div>
-
-                <div className="max-w-md mx-auto w-full pt-1">
+              <div className="flex-1 min-h-0 w-full flex flex-col justify-between py-1">
+                <div
+                  className="anki-card-content flex-1 min-h-0 w-full text-left overflow-y-auto"
+                  dangerouslySetInnerHTML={{ __html: frontHtml }}
+                />
+                <div className="max-w-md mx-auto w-full pt-2 shrink-0">
                   <input
                     ref={inputRef}
                     type="text"
@@ -391,9 +417,8 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
                 card={current}
                 typed={typed}
                 correct={correct}
-                hints={hints}
+                backHtml={backHtml}
                 showHanzii={ui.showHanzii}
-                isGrammar={section === "grammar"}
               />
             )}
           </div>
@@ -401,7 +426,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
       </div>
 
       {/* Nút hành động — vùng cao cố định */}
-      <div className="study-action-bar px-4 pb-5 space-y-3">
+      <div className="study-action-bar shrink-0 px-4 pb-5 space-y-2">
         {!revealed ? (
           <div className="flex justify-center">
             <button type="button" onClick={showAnswer} className="hsk-show-btn px-10 py-2.5 text-base">
@@ -436,136 +461,47 @@ function HskAnswerBack({
   card,
   typed,
   correct,
-  hints,
+  backHtml,
   showHanzii = true,
-  isGrammar = false,
 }: {
   card: HskCardView;
   typed: string;
   correct: boolean;
-  hints: string[];
+  backHtml: string;
   showHanzii?: boolean;
-  isGrammar?: boolean;
 }) {
   const showWrongCompare = !correct && typed.trim().length > 0;
-  const mainDisplay = isGrammar ? "meaning" : "hanzi";
 
   return (
-    <div className="space-y-4 w-full my-auto py-2">
-      {/* Wrong answer comparison & Pinyin badge */}
-      <div className="relative flex flex-col items-center gap-2">
-        {showWrongCompare && (
-          <div className="text-center space-y-1 mb-1">
-            <p className={`font-medium text-red-700 ${isGrammar ? "text-lg" : "text-2xl md:text-3xl"}`}>{typed}</p>
-            <p className="text-stone-400 text-lg leading-none">↓</p>
-          </div>
-        )}
-        {card.pinyin && (
-          <span className="pinyin hsk-pinyin-badge text-base md:text-lg px-4 py-1">
-            {card.pinyin}
-          </span>
-        )}
-      </div>
-
-      {/* Image if present */}
-      {card.imageUrl ? (
-        <div className="hsk-study-image-wrap my-1">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={card.imageUrl} alt="" className="hsk-study-image" />
+    <div className="flex-1 min-h-0 w-full flex flex-col py-1">
+      {showWrongCompare && (
+        <div className="text-center space-y-1 pb-2 shrink-0">
+          <p className="font-medium text-red-700 text-lg md:text-xl">{typed}</p>
+          <p className="text-stone-400 text-lg leading-none">↓</p>
         </div>
-      ) : null}
-
-      {/* Large Chinese character display */}
-      <div className="study-main-display hsk-char-display w-full text-center px-4 rounded-xl bg-white/95 shadow-sm border border-stone-100">
-        <span className={`${mainDisplay} font-bold text-stone-900 tracking-wide`}>{card.answer}</span>
-      </div>
-
-      {/* Definition card */}
-      <div className="hsk-answer-card rounded-xl p-4 space-y-2">
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <span className={`font-bold text-stone-900 ${isGrammar ? "" : "text-xl md:text-2xl"}`}>{card.answer}</span>
-          {card.pinyin && (
-            <span className="text-stone-600 text-base md:text-lg">/{card.pinyin}/</span>
+      )}
+      <div
+        className="anki-card-content flex-1 min-h-0 w-full text-left overflow-y-auto"
+        dangerouslySetInnerHTML={{ __html: backHtml }}
+      />
+      {(showHanzii || correct) && (
+        <div className="pt-3 shrink-0 flex flex-col items-center gap-1.5">
+          {showHanzii && (
+            <a
+              href={hanziiSearchUrl(card.answer)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hsk-hanzii-btn inline-flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold"
+            >
+              <span aria-hidden>🔍</span> Tra từ điển Hanzii
+            </a>
           )}
-          <AudioBtn url={card.audioUrl} text={card.answer} />
+          {correct && (
+            <p className="text-center text-sm md:text-base text-emerald-700 font-semibold">✓ Chính xác!</p>
+          )}
         </div>
-        {!isGrammar && (
-          <div className="hsk-hints text-base md:text-lg text-center space-y-1 text-emerald-800 font-medium pt-1">
-            {hints.map((h, i) => (
-              <p key={i}>
-                {hints.length > 1 ? `${i + 1}. ` : ""}
-                {h}
-              </p>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Example sentence */}
-      {card.example && (card.example.chinese || card.example.vietnamese) && (
-        <div className="hsk-example-card rounded-xl p-4 text-left">
-          <div className="flex gap-2.5 items-start">
-            <span className="text-emerald-600 text-lg leading-none mt-0.5">•</span>
-            <div className="flex-1 space-y-1.5">
-              {card.example.chinese && (
-                <p className="font-semibold text-stone-900 text-base md:text-lg">{card.example.chinese}</p>
-              )}
-              {card.example.pinyin && (
-                <p className="text-stone-500 italic text-sm md:text-base">/{card.example.pinyin}/</p>
-              )}
-              {card.example.vietnamese && (
-                <p className="text-stone-700 text-sm md:text-base">{card.example.vietnamese}</p>
-              )}
-            </div>
-            <AudioBtn url={card.exampleAudioUrl} text={card.example.chinese} />
-          </div>
-        </div>
-      )}
-
-      {/* Mnemonic / etymology */}
-      {card.mnemonic && (
-        <div className="hsk-mnemonic-card rounded-xl p-4 text-sm md:text-base whitespace-pre-line leading-relaxed text-left">
-          {card.mnemonic}
-        </div>
-      )}
-
-      {/* Hanzii dictionary */}
-      {showHanzii && (
-        <div className="flex justify-center pt-1">
-          <a
-            href={hanziiSearchUrl(card.answer)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hsk-hanzii-btn inline-flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold"
-          >
-            <span aria-hidden>🔍</span> Tra từ điển Hanzii
-          </a>
-        </div>
-      )}
-
-      {correct && (
-        <p className="text-center text-sm md:text-base text-emerald-700 font-semibold">✓ Chính xác!</p>
       )}
     </div>
-  );
-}
-
-function AudioBtn({ url, text }: { url?: string; text?: string }) {
-  const play = () => {
-    void playAudioOrTts(url, text);
-  };
-  return (
-    <button
-      type="button"
-      aria-label="Phát âm"
-      className="hsk-audio-btn w-8 h-8 rounded-full inline-flex items-center justify-center text-sm shrink-0"
-      onClick={(e) => {
-        e.stopPropagation();
-        play();
-      }}
-    >
-      🔊
-    </button>
   );
 }
 

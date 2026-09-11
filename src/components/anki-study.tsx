@@ -27,9 +27,8 @@ import {
 } from "@/lib/card-template";
 import type { CardTypeDef } from "@/lib/card-types";
 import { playAudioOrTts, resolveSoundPlayUrl } from "@/lib/anki-sound";
-
 import { sectionLabel, type StudySectionId } from "@/lib/sections";
-
+import { presetTemplatesForSection } from "@/lib/section-presets";
 import { previewIntervals, type ReviewState } from "@/lib/srs";
 
 
@@ -255,19 +254,13 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
 
-  const activeTemplates = useMemo(
-
-    () =>
-
+  const activeTemplates = useMemo(() => {
+    const resolved =
       templates && currentCardType
-
         ? resolveCardTypeTemplates(templates, currentCardType)
-
-        : templates,
-
-    [templates, currentCardType],
-
-  );
+        : templates;
+    return resolved ?? presetTemplatesForSection(section);
+  }, [templates, currentCardType, section]);
 
 
 
@@ -578,76 +571,44 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
     <div
       ref={studyRef}
       tabIndex={-1}
-      className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none"
+      className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none flex flex-col justify-between"
+      style={{ height: 730, minHeight: 730, maxHeight: 730 }}
     >
-
-      <div className="relative px-4 pt-5 pb-2">
-
+      <div className="relative px-4 pt-5 pb-2 shrink-0">
         <div className="hsk-header-pill mx-auto max-w-md text-center py-2.5 px-6">
-
           {title.toUpperCase()}
-
         </div>
-
       </div>
 
-
-
-      <div className="px-4 pb-1 flex items-center justify-between text-sm text-stone-600">
-
+      <div className="px-4 pb-1 flex items-center justify-between text-sm text-stone-600 shrink-0">
         <span>
-
           {index + 1} / {cards.length}
-
           {current.srs.isNew && (
-
             <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">Mới</span>
-
           )}
-
         </span>
-
       </div>
 
-
-
-      <div className="mx-4">
-
+      <div className="mx-4 shrink-0 flex justify-center">
         <style>{activeTemplates.cardCss}</style>
-
         <div
-
           onClick={(e) => {
-
             if ((e.target as HTMLElement).closest(".audio-btn, [data-audio]")) return;
-
             if (!flipped) setFlipped(true);
-
             focusStudy();
-
           }}
-
-          className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-4 md:p-5 shadow-sm text-left transition hover:border-emerald-400 cursor-pointer flex flex-col"
-
+          className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-4 md:p-5 shadow-sm text-left transition hover:border-emerald-400 cursor-pointer flex flex-col w-full max-w-[48rem] h-[520px] min-h-[520px] max-h-[520px] mx-auto overflow-hidden shrink-0"
+          style={{ height: 520, minHeight: 520, maxHeight: 520, width: "100%", maxWidth: "48rem" }}
         >
-
           <div
-
             ref={cardRef}
-
-            className="anki-card-content flex-1"
-
+            className="anki-card-content flex-1 min-h-0 w-full text-left overflow-y-auto"
             dangerouslySetInnerHTML={{ __html: html }}
-
           />
-
         </div>
-
       </div>
 
-
-
-      <div className="study-action-bar px-4 pb-5 space-y-3">
+      <div className="study-action-bar shrink-0 px-4 pb-5 space-y-3">
 
         {!flipped ? (
 

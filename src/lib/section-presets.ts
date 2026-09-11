@@ -20,9 +20,10 @@ function field(
 
 const BASE_CARD_CSS = `.card {
   text-align: center;
-  padding: 1.5rem 1.25rem;
+  padding: 1rem 1.25rem;
   width: 100%;
   min-height: 100%;
+  margin: auto 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -31,28 +32,36 @@ const BASE_CARD_CSS = `.card {
 }
 .card .hint {
   margin-top: auto;
-  padding-top: 1.25rem;
+  padding-top: 1rem;
   flex-shrink: 0;
 }
 .hanzi, .hanzi-ref, .answer-cn {
-  font-size: clamp(2rem, 6vw, 2.75rem);
+  font-size: clamp(2rem, 5vw, 2.5rem);
   font-weight: 600;
   color: #1c1917;
   line-height: 1.3;
   text-align: center;
   width: 100%;
 }
-.card.back .meaning,
 .card.front .meaning {
-  font-size: clamp(2rem, 6vw, 2.75rem);
+  font-size: clamp(1.75rem, 5vw, 2.25rem);
   color: #1c1917;
   font-weight: 600;
   line-height: 1.35;
   text-align: center;
   width: 100%;
 }
+.card.back .meaning {
+  font-size: clamp(1.125rem, 3.5vw, 1.35rem);
+  color: #047857;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  width: 100%;
+  margin-top: 0.5rem;
+}
 .explain {
-  font-size: clamp(2rem, 6vw, 2.75rem);
+  font-size: clamp(1.5rem, 4.5vw, 2rem);
   color: #1c1917;
   font-weight: 600;
   line-height: 1.35;

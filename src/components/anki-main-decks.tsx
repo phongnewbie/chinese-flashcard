@@ -41,6 +41,23 @@ type OverviewData = {
   studiedToday: number;
 };
 
+function CountCell({ value, tone }: { value: number; tone: "blue" | "red" | "muted" }) {
+  if (!value) return <td className="anki-deck-count" />;
+  const cls =
+    tone === "blue" ? "anki-deck-count blue" : tone === "red" ? "anki-deck-count red" : "anki-deck-count muted";
+  return <td className={cls}>{value}</td>;
+}
+
+function StatsCells({ stats }: { stats: DeckCountStats }) {
+  return (
+    <>
+      <CountCell value={stats.new} tone="blue" />
+      <CountCell value={stats.learning} tone="red" />
+      <CountCell value={stats.due} tone="muted" />
+    </>
+  );
+}
+
 export function AnkiMainDecks() {
   const router = useRouter();
   const { access, loading: accessLoading } = useAccess();
@@ -254,6 +271,9 @@ export function AnkiMainDecks() {
           <thead>
             <tr>
               <th className="anki-deck-name-col">Bộ thẻ</th>
+              <th className="anki-deck-stat-col" title="Thẻ mới">Mới</th>
+              <th className="anki-deck-stat-col" title="Đang học">Học</th>
+              <th className="anki-deck-stat-col" title="Đến hạn ôn">Ôn</th>
               {isAdmin && <th className="anki-deck-gear-col" />}
             </tr>
           </thead>
@@ -378,6 +398,7 @@ function LevelBlock({
             <span className="anki-deck-meta ml-2 text-stone-400">Chưa được mở</span>
           )}
         </td>
+        <StatsCells stats={level.stats} />
         {isAdmin && <td />}
       </tr>
       {levelOpen &&
@@ -490,6 +511,7 @@ function CategoryBlock({
             </>
           )}
         </td>
+        <StatsCells stats={cat.stats} />
         {isAdmin && <td />}
       </tr>
       {catOpen &&
@@ -542,7 +564,9 @@ function CategoryBlock({
                   {deck.title}
                 </span>
               )}
+              <span className="anki-deck-meta">{deck.cardCount} thẻ</span>
             </td>
+            <StatsCells stats={deck.stats} />
             {isAdmin && (
               <td className="anki-deck-gear">
                 <Link href={`/admin/khoa/${deck.id}`} title="Nhập liệu, trường, mẫu thẻ">
@@ -554,7 +578,7 @@ function CategoryBlock({
         ))}
       {catOpen && cat.decks.length === 0 && (
         <tr className="anki-deck-row empty">
-          <td colSpan={isAdmin ? 2 : 1} className="indent-2 text-stone-400 text-sm py-2">
+          <td colSpan={isAdmin ? 5 : 4} className="indent-2 text-stone-400 text-sm py-2">
             Chưa có bộ thẻ — {isAdmin ? 'bấm "+ thêm"' : "admin sẽ thêm sau"}
           </td>
         </tr>

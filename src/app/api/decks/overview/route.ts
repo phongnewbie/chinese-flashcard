@@ -68,7 +68,7 @@ export async function GET() {
       hskLevel: course.hskLevel!,
       primarySection: course.primarySection ?? "vocabulary",
       sortOrder: course.sortOrder,
-      cardCount: sectionCards.length,
+      cardCount: stats.total,
       stats,
     };
   });
