@@ -58,7 +58,6 @@ export function playSpeechTts(text: string, lang = "zh-CN"): Promise<void> {
       return;
     }
     try {
-      window.speechSynthesis.cancel();
       const clean = text.replace(/<[^>]+>/g, "").trim();
       if (!clean) {
         resolve();
@@ -69,7 +68,15 @@ export function playSpeechTts(text: string, lang = "zh-CN"): Promise<void> {
       utterance.rate = 0.85;
       utterance.onend = () => resolve();
       utterance.onerror = () => resolve();
-      window.speechSynthesis.speak(utterance);
+      window.speechSynthesis.cancel();
+      // Trì hoãn ngắn — tránh TTS bị nuốt lần phát đầu (Chrome)
+      window.setTimeout(() => {
+        try {
+          window.speechSynthesis.speak(utterance);
+        } catch {
+          resolve();
+        }
+      }, 50);
     } catch {
       resolve();
     }

@@ -19,10 +19,12 @@ type Props = {
   minHeight?: number;
 };
 
-/** Chuẩn hóa HTML cũ (field-img-wrap) → img đơn giản để hiển thị đúng */
+/** Chuẩn hóa HTML cũ (field-img-wrap) — giữ nhiều ảnh nếu có */
 function normalizeRichHtml(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return "";
+  const imgCount = (trimmed.match(/<img\b/gi) ?? []).length;
+  if (imgCount > 1) return trimmed;
   const src = extractImageSrcFromField(trimmed);
   if (!src) return trimmed;
   const textOnly = trimmed.replace(/<[^>]*>/g, "").replace(/\s/g, "");

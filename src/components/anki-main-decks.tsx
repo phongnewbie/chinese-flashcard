@@ -331,6 +331,7 @@ export function AnkiMainDecks() {
 
       {templateDialog && (
         <SectionTemplateEditor
+          key={templateDialog.sectionId}
           sectionId={templateDialog.sectionId}
           label={templateDialog.label}
           onClose={() => setTemplateDialog(null)}

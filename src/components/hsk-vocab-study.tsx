@@ -12,11 +12,14 @@ import {
   AnkiSessionFinished,
   type DeckStats,
 } from "@/components/anki-deck-overview";
+import { StudyHintBar } from "@/components/study-hint-bar";
 import { renderCardTemplate, toCardFields } from "@/lib/card-template";
-import { presetTemplatesForSection } from "@/lib/section-templates";
+import { presetTemplatesForSection, type SectionStudyOptions } from "@/lib/section-templates";
 import type { CardTypeDef } from "@/lib/card-types";
 import { previewIntervals } from "@/lib/srs";
-import { playAudioOrTts, playAudioSequence } from "@/lib/anki-sound";
+import { playAudioOrTts, playAudioSequence, type AudioPlayItem } from "@/lib/anki-sound";
+import { hintLinesFromFields, resolveStudyOptions } from "@/lib/study-options";
+import { parseExample } from "@/lib/hsk-card";
 
 const SECTION_UI: Record<
   "vocabulary" | "grammar" | "common",
@@ -67,6 +70,7 @@ type StudyTemplates = {
   frontTemplate: string;
   backTemplate: string;
   cardCss: string;
+  studyOptions?: SectionStudyOptions;
 };
 
 export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }: Props) {
@@ -83,9 +87,11 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<StudyTemplates | null>(null);
   const [cardTypes, setCardTypes] = useState<CardTypeDef[]>([]);
+  const [hintVisible, setHintVisible] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
   const cardContentRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const ratingLockRef = useRef(false);
   const onStatsRef = useRef(onStats);
   onStatsRef.current = onStats;
 
@@ -132,6 +138,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
     setIndex(0);
     setTyped("");
     setRevealed(false);
+    setHintVisible(false);
     setPhase("study");
     focusAnswerInput();
   };
@@ -152,6 +159,16 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   const activeTemplates = useMemo(() => {
     return templates ?? presetTemplatesForSection(section);
   }, [templates, section]);
+
+  const studyOptions = useMemo(
+    () => resolveStudyOptions(section, activeTemplates.studyOptions),
+    [section, activeTemplates.studyOptions],
+  );
+
+  const hintLines = useMemo(
+    () => hintLinesFromFields(templateFields ?? undefined, studyOptions.hintFields),
+    [templateFields, studyOptions.hintFields],
+  );
 
   const frontHtml = useMemo(() => {
     if (!templateFields) return "";
@@ -177,25 +194,41 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
     return () => el.removeEventListener("click", onClick);
   }, [revealed, currentRaw?.id, frontHtml, backHtml]);
 
-  const showAnswer = useCallback(() => {
-    setRevealed(true);
-    requestAnimationFrame(() => shellRef.current?.focus());
-  }, []);
+  const playRevealAudio = useCallback(
+    (card: HskCardView, fields: Record<string, string> | null) => {
+      const delay = studyOptions.audioDelayMs ?? 0;
+      const run = () => {
+        const items: AudioPlayItem[] = [];
+        if (studyOptions.audioWordFirst !== false) {
+          items.push({ audioUrl: card.audioUrl, text: card.answer, lang: "zh-CN" });
+        }
+        if (studyOptions.audioExampleOnReveal !== false) {
+          const rawExample = fields?.["Đặt câu"] ?? fields?.["ĐẶT CÂU"] ?? fields?.["VÍ DỤ"] ?? "";
+          const parsed = rawExample ? parseExample(rawExample.replace(/<[^>]+>/g, "")) : card.example;
+          items.push({
+            audioUrl: card.exampleAudioUrl,
+            text: parsed?.chinese ?? card.example?.chinese,
+            lang: "zh-CN",
+          });
+        }
+        void playAudioSequence(items);
+      };
+      if (delay > 0) window.setTimeout(run, delay);
+      else run();
+    },
+    [studyOptions],
+  );
 
-  useEffect(() => {
-    if (!revealed || !current) return;
-    void playAudioSequence([
-      { audioUrl: current.audioUrl, text: current.answer, lang: "zh-CN" },
-      {
-        audioUrl: current.exampleAudioUrl,
-        text: current.example?.chinese,
-        lang: "zh-CN",
-      },
-    ]);
-  }, [revealed, current?.id, current?.audioUrl, current?.answer, current?.exampleAudioUrl, current?.example?.chinese]);
+  const showAnswer = useCallback(() => {
+    if (!current) return;
+    setRevealed(true);
+    playRevealAudio(current, templateFields);
+    requestAnimationFrame(() => shellRef.current?.focus());
+  }, [current, templateFields, playRevealAudio]);
 
   const rate = async (rating: 1 | 2 | 3 | 4) => {
-    if (!current || !currentRaw) return;
+    if (!current || !currentRaw || ratingLockRef.current) return;
+    ratingLockRef.current = true;
     const rated = current;
     const ratedRaw = currentRaw;
     const atIndex = index;
@@ -203,6 +236,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
 
     setRevealed(false);
     setTyped("");
+    setHintVisible(false);
     setSessionCount((n) => n + 1);
 
     if (isLast) {
@@ -246,6 +280,8 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
       }
     } catch (err) {
       console.warn("[study] Lưu đánh giá lỗi:", err);
+    } finally {
+      ratingLockRef.current = false;
     }
   };
 
@@ -388,10 +424,16 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
         >
           <div ref={cardContentRef} className="study-card-scroll flex-1 min-h-0 flex flex-col w-full h-full overflow-hidden">
             {!revealed ? (
-              <div className="flex-1 min-h-0 w-full flex flex-col justify-between py-1">
+              <div key={`front-${current.id}-${index}`} className="flex-1 min-h-0 w-full flex flex-col justify-between py-1">
                 <div
                   className="anki-card-content flex-1 min-h-0 w-full text-left overflow-y-auto"
                   dangerouslySetInnerHTML={{ __html: frontHtml }}
+                />
+                <StudyHintBar
+                  hints={hintLines}
+                  label={studyOptions.hintLabel}
+                  visible={hintVisible}
+                  onToggle={() => setHintVisible((v) => !v)}
                 />
                 <div className="max-w-md mx-auto w-full pt-2 shrink-0">
                   <input
@@ -414,6 +456,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
               </div>
             ) : (
               <HskAnswerBack
+                key={`back-${current.id}-${index}`}
                 card={current}
                 typed={typed}
                 correct={correct}

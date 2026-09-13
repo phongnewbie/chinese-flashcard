@@ -5,7 +5,9 @@ import {
   parseSectionTemplates,
   presetTemplatesForSection,
   serializeSectionTemplates,
+  type SectionStudyOptions,
 } from "@/lib/section-templates";
+import { defaultStudyOptionsForSection } from "@/lib/study-options";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -18,7 +20,13 @@ export async function GET() {
 
   const sections: Record<
     string,
-    { frontTemplate: string; backTemplate: string; cardCss: string; isCustom: boolean }
+    {
+      frontTemplate: string;
+      backTemplate: string;
+      cardCss: string;
+      studyOptions: SectionStudyOptions;
+      isCustom: boolean;
+    }
   > = {};
 
   for (const cat of HSK_CATEGORIES) {
@@ -28,6 +36,10 @@ export async function GET() {
       frontTemplate: custom?.frontTemplate ?? preset.frontTemplate,
       backTemplate: custom?.backTemplate ?? preset.backTemplate,
       cardCss: custom?.cardCss ?? preset.cardCss,
+      studyOptions: {
+        ...defaultStudyOptionsForSection(cat.id),
+        ...(custom?.studyOptions ?? {}),
+      },
       isCustom: !!custom,
     };
   }
@@ -44,6 +56,7 @@ export async function PATCH(req: Request) {
     frontTemplate?: string;
     backTemplate?: string;
     cardCss?: string;
+    studyOptions?: SectionStudyOptions;
     reset?: boolean;
   };
 
@@ -59,10 +72,12 @@ export async function PATCH(req: Request) {
   if (body.reset) {
     delete map[section];
   } else {
+    const prev = map[section];
     map[section] = {
-      frontTemplate: body.frontTemplate ?? presetTemplatesForSection(section).frontTemplate,
-      backTemplate: body.backTemplate ?? presetTemplatesForSection(section).backTemplate,
-      cardCss: body.cardCss ?? presetTemplatesForSection(section).cardCss,
+      frontTemplate: body.frontTemplate ?? prev?.frontTemplate ?? presetTemplatesForSection(section).frontTemplate,
+      backTemplate: body.backTemplate ?? prev?.backTemplate ?? presetTemplatesForSection(section).backTemplate,
+      cardCss: body.cardCss ?? prev?.cardCss ?? presetTemplatesForSection(section).cardCss,
+      studyOptions: body.studyOptions ?? prev?.studyOptions ?? defaultStudyOptionsForSection(section),
     };
   }
 

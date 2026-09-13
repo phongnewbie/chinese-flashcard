@@ -7,7 +7,9 @@ import {
   presetTemplatesForSection,
   sampleCardForSection,
   type SectionTemplateSet,
+  type SectionStudyOptions,
 } from "@/lib/section-templates";
+import { defaultStudyOptionsForSection } from "@/lib/study-options";
 import type { HskCategoryId } from "@/lib/hsk-levels";
 
 type Props = {
@@ -24,25 +26,37 @@ export function SectionTemplateEditor({ sectionId, label, onClose }: Props) {
   const [isCustom, setIsCustom] = useState(false);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
-  const [tab, setTab] = useState<"front" | "back" | "css">("front");
+  const [tab, setTab] = useState<"front" | "back" | "css" | "study">("front");
+  const [studyOptions, setStudyOptions] = useState<SectionStudyOptions>(
+    defaultStudyOptionsForSection(sectionId),
+  );
 
   const preset = getSectionPreset(sectionId);
   const fieldNames = preset.fieldDefs.map((f) => f.name);
 
   useEffect(() => {
-    setLoading(true);
-    fetch("/api/admin/section-templates")
+    let cancelled = false;
+    void fetch("/api/admin/section-templates")
       .then((r) => r.json())
-      .then((json: { sections?: Record<string, SectionTemplateSet & { isCustom?: boolean }> }) => {
+      .then((json: {
+        sections?: Record<string, SectionTemplateSet & { isCustom?: boolean; studyOptions?: SectionStudyOptions }>;
+      }) => {
+        if (cancelled) return;
         const row = json.sections?.[sectionId];
         if (row) {
           setFrontTemplate(row.frontTemplate);
           setBackTemplate(row.backTemplate);
           setCardCss(row.cardCss);
+          setStudyOptions(row.studyOptions ?? defaultStudyOptionsForSection(sectionId));
           setIsCustom(!!row.isCustom);
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [sectionId]);
 
   const sampleCard = sampleCardForSection(sectionId);
@@ -54,7 +68,7 @@ export function SectionTemplateEditor({ sectionId, label, onClose }: Props) {
     const res = await fetch("/api/admin/section-templates", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ section: sectionId, frontTemplate, backTemplate, cardCss }),
+      body: JSON.stringify({ section: sectionId, frontTemplate, backTemplate, cardCss, studyOptions }),
     });
     if (res.ok) {
       setIsCustom(true);
@@ -73,6 +87,7 @@ export function SectionTemplateEditor({ sectionId, label, onClose }: Props) {
       setFrontTemplate(d.frontTemplate);
       setBackTemplate(d.backTemplate);
       setCardCss(d.cardCss);
+      setStudyOptions(defaultStudyOptionsForSection(sectionId));
       setIsCustom(false);
       setMsg("Đã khôi phục mẫu mặc định");
     } else setMsg("Lỗi khôi phục");
@@ -112,8 +127,8 @@ export function SectionTemplateEditor({ sectionId, label, onClose }: Props) {
               <code className="text-xs bg-stone-100 px-1">{`{{#Trường}}...{{/Trường}}`}</code>
             </p>
 
-            <div className="flex gap-2 text-sm">
-              {(["front", "back", "css"] as const).map((t) => (
+            <div className="flex gap-2 text-sm flex-wrap">
+              {(["front", "back", "css", "study"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -122,7 +137,13 @@ export function SectionTemplateEditor({ sectionId, label, onClose }: Props) {
                     tab === t ? "bg-stone-900 text-white" : "bg-white"
                   }`}
                 >
-                  {t === "front" ? "Mặt trước" : t === "back" ? "Mặt sau" : "CSS"}
+                  {t === "front"
+                    ? "Mặt trước"
+                    : t === "back"
+                      ? "Mặt sau"
+                      : t === "css"
+                        ? "CSS"
+                        : "Học thẻ"}
                 </button>
               ))}
               <button
@@ -134,16 +155,78 @@ export function SectionTemplateEditor({ sectionId, label, onClose }: Props) {
               </button>
             </div>
 
-            <textarea
-              className="w-full font-mono text-xs border border-stone-200 rounded-lg p-3 min-h-[160px]"
-              value={tab === "front" ? frontTemplate : tab === "back" ? backTemplate : cardCss}
-              onChange={(e) => {
-                if (tab === "front") setFrontTemplate(e.target.value);
-                else if (tab === "back") setBackTemplate(e.target.value);
-                else setCardCss(e.target.value);
-              }}
-              spellCheck={false}
-            />
+            {tab === "study" ? (
+              <div className="space-y-4 border border-stone-200 rounded-lg p-4 text-sm">
+                <p className="text-stone-600">
+                  Cài đặt âm thanh và nút gợi ý khi học thẻ (áp dụng mọi bộ thẻ cùng mục).
+                </p>
+                <label className="block space-y-1">
+                  <span className="font-medium">Trì hoãn phát âm (ms)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={5000}
+                    step={100}
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={studyOptions.audioDelayMs ?? 0}
+                    onChange={(e) =>
+                      setStudyOptions((o) => ({ ...o, audioDelayMs: Number(e.target.value) || 0 }))
+                    }
+                  />
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={studyOptions.audioWordFirst !== false}
+                    onChange={(e) => setStudyOptions((o) => ({ ...o, audioWordFirst: e.target.checked }))}
+                  />
+                  Phát từ/chữ Hán trước, rồi đặt câu
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={studyOptions.audioExampleOnReveal !== false}
+                    onChange={(e) =>
+                      setStudyOptions((o) => ({ ...o, audioExampleOnReveal: e.target.checked }))
+                    }
+                  />
+                  Tự đọc đặt câu khi hiện đáp án
+                </label>
+                <label className="block space-y-1">
+                  <span className="font-medium">Trường gợi ý (phân cách dấu phẩy)</span>
+                  <input
+                    type="text"
+                    className="w-full border rounded-lg px-3 py-2 font-mono text-xs"
+                    placeholder="CẤU TRÚC,CÁCH DÙNG"
+                    value={studyOptions.hintFields ?? ""}
+                    onChange={(e) => setStudyOptions((o) => ({ ...o, hintFields: e.target.value }))}
+                  />
+                  <span className="text-xs text-stone-500">
+                    Ví dụ từ vựng: Nghĩa hán việt,Loại từ · Ngữ pháp: CẤU TRÚC,CÁCH DÙNG
+                  </span>
+                </label>
+                <label className="block space-y-1">
+                  <span className="font-medium">Nhãn nút gợi ý</span>
+                  <input
+                    type="text"
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={studyOptions.hintLabel ?? "Gợi ý"}
+                    onChange={(e) => setStudyOptions((o) => ({ ...o, hintLabel: e.target.value }))}
+                  />
+                </label>
+              </div>
+            ) : (
+              <textarea
+                className="w-full font-mono text-xs border border-stone-200 rounded-lg p-3 min-h-[160px]"
+                value={tab === "front" ? frontTemplate : tab === "back" ? backTemplate : cardCss}
+                onChange={(e) => {
+                  if (tab === "front") setFrontTemplate(e.target.value);
+                  else if (tab === "back") setBackTemplate(e.target.value);
+                  else setCardCss(e.target.value);
+                }}
+                spellCheck={false}
+              />
+            )}
 
             <div className="grid sm:grid-cols-2 gap-4">
               <div>

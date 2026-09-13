@@ -1,5 +1,6 @@
 import { parseExtraFields } from "@/lib/fields";
-import { resolveSoundPlayUrl, isPlayableAudio, renderTextWithSound } from "@/lib/anki-sound";
+import { resolveSoundPlayUrl, isPlayableAudio, renderTextWithSound, firstAudioInText } from "@/lib/anki-sound";
+import { parseExample } from "@/lib/hsk-card";
 import type { CardTypeDef } from "@/lib/card-types";
 import { requiredFieldLabels } from "@/lib/section-presets";
 import { resolveImageSrc } from "@/lib/paste-image";
@@ -114,6 +115,37 @@ function isAudioFieldKey(key: string): boolean {
   return k === "audio" || k === "âm thanh" || k === "am thanh" || k.includes("am thanh");
 }
 
+function isExampleFieldKey(key: string): boolean {
+  const k = key
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/\s+/g, " ");
+  return k.includes("dat cau") || k === "vi du" || k === "example" || k === "vd";
+}
+
+function exampleFieldHtml(val: string): string {
+  if (/\[sound:/i.test(val) || /<img\b/i.test(val) || /field-img-wrap/i.test(val)) {
+    const withImg = /<img\b/i.test(val) ? sanitizeEmbeddedImages(val) : val;
+    return renderTextWithSound(withImg);
+  }
+  const plain = val.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
+  const parsed = parseExample(plain);
+  if (!parsed) return escapeHtml(val);
+  const audioSrc = firstAudioInText(val);
+  const btn =
+    parsed.chinese || audioSrc
+      ? `<button type="button" class="audio-btn" data-audio="${escapeHtml(
+          audioSrc ? resolveSoundPlayUrl(audioSrc) : "",
+        )}" data-text="${escapeHtml(parsed.chinese)}" title="Nghe câu ví dụ">🔊</button>`
+      : "";
+  const parts: string[] = [];
+  if (parsed.chinese) parts.push(`<span class="example-cn">${escapeHtml(parsed.chinese)}</span>`);
+  if (parsed.pinyin) parts.push(`<span class="example-py">${escapeHtml(parsed.pinyin)}</span>`);
+  if (parsed.vietnamese) parts.push(`<span class="example-vi">${escapeHtml(parsed.vietnamese)}</span>`);
+  return `${parts.join(' <span class="example-sep">/</span> ')} ${btn}`.trim();
+}
+
 function fieldToHtml(key: string, val: string, side: "front" | "back", fieldsContext?: TemplateFields): string {
   if (!val) return "";
   const k = key.toLowerCase();
@@ -134,6 +166,9 @@ function fieldToHtml(key: string, val: string, side: "front" | "back", fieldsCon
     if (/\[sound:/i.test(val) || /https?:\/\//i.test(val)) return renderTextWithSound(val);
   }
 
+  if (isExampleFieldKey(key)) {
+    return exampleFieldHtml(val);
+  }
   if (/<img\b/i.test(val) || /field-img-wrap/i.test(val)) {
     return sanitizeEmbeddedImages(val);
   }

@@ -87,14 +87,23 @@ export function fieldUsesImageEditor(label: string, _value: string, isImage?: bo
 }
 
 export function extractImageSrcFromField(value: string): string | null {
+  const all = extractAllImageSrcFromField(value);
+  return all[0] ?? null;
+}
+
+/** Mọi ảnh trong trường (hỗ trợ paste nhiều ảnh) */
+export function extractAllImageSrcFromField(value: string): string[] {
   const trimmed = value.trim();
-  if (!trimmed) return null;
-  const src = resolveImageSrc(trimmed);
-  if (!src) return null;
-  if (/<img\b/i.test(trimmed) || /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(trimmed)) {
-    return src;
+  if (!trimmed) return [];
+  const fromTags = [...trimmed.matchAll(/<img\b[^>]*\ssrc=["']([^"']+)["']/gi)]
+    .map((m) => resolveImageSrc(m[1] ?? ""))
+    .filter(Boolean);
+  if (fromTags.length) return [...new Set(fromTags)];
+  const single = resolveImageSrc(trimmed);
+  if (single && (/<img\b/i.test(trimmed) || /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(trimmed))) {
+    return [single];
   }
-  return null;
+  return [];
 }
 
 export function parseImageAlign(value: string): ImageAlign {

@@ -26,10 +26,13 @@ import {
 
 } from "@/lib/card-template";
 import type { CardTypeDef } from "@/lib/card-types";
-import { playAudioOrTts, resolveSoundPlayUrl } from "@/lib/anki-sound";
+import { StudyHintBar } from "@/components/study-hint-bar";
+import { playAudioOrTts, playAudioSequence, resolveSoundPlayUrl } from "@/lib/anki-sound";
 import { sectionLabel, type StudySectionId } from "@/lib/sections";
-import { presetTemplatesForSection } from "@/lib/section-templates";
+import { presetTemplatesForSection, type SectionStudyOptions } from "@/lib/section-templates";
 import { previewIntervals, type ReviewState } from "@/lib/srs";
+import { hintLinesFromFields, resolveStudyOptions } from "@/lib/study-options";
+import { parseExample } from "@/lib/hsk-card";
 
 
 
@@ -66,6 +69,8 @@ type Templates = {
   backTemplate: string;
 
   cardCss: string;
+
+  studyOptions?: SectionStudyOptions;
 
 };
 
@@ -110,6 +115,8 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
   const [sessionCount, setSessionCount] = useState(0);
 
   const [flipped, setFlipped] = useState(false);
+
+  const [hintVisible, setHintVisible] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -233,6 +240,8 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
     setFlipped(false);
 
+    setHintVisible(false);
+
     setPhase("study");
     focusStudy();
 
@@ -262,7 +271,10 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
     return resolved ?? presetTemplatesForSection(section);
   }, [templates, currentCardType, section]);
 
-
+  const studyOptions = useMemo(
+    () => resolveStudyOptions(section, templates?.studyOptions),
+    [section, templates?.studyOptions],
+  );
 
   const fields: TemplateFields | null = useMemo(
 
@@ -272,7 +284,10 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
   );
 
-
+  const hintLines = useMemo(
+    () => hintLinesFromFields(fields ?? undefined, studyOptions.hintFields),
+    [fields, studyOptions.hintFields],
+  );
 
   const intervals = useMemo(
 
@@ -284,7 +299,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
 
-  const playAudio = (url?: string | null, textFallback?: string | null, lang = "zh-CN") => {
+  const playAudio = useCallback((url?: string | null, textFallback?: string | null, lang = "zh-CN") => {
     const fallback =
       textFallback ||
       fields?.["Tiếng Trung"] ||
@@ -296,9 +311,64 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
       current?.front ||
       "";
     void playAudioOrTts(url, fallback, lang);
-  };
+  }, [fields, current?.front]);
 
+  const playFlipAudio = useCallback(() => {
+    if (!fields || !current) return;
+    const delay = studyOptions.audioDelayMs ?? 0;
+    const run = () => {
+      const audioUrl = fields["ÂM THANH"] || fields.Audio || current.audioUrl || null;
+      if (section === "grammar") {
+        const cn = fields["CHỮ HÁN"] || fields["Tiếng Trung"] || fields.Front || current.front || "";
+        playAudio(audioUrl, cn, "zh-CN");
+        return;
+      }
+      if (section === "common") {
+        const cn = fields["CÂU TRẢ LỜI"] || fields["Tiếng Trung"] || fields.Back || current.back || "";
+        playAudio(audioUrl, cn, "zh-CN");
+        return;
+      }
+      if (studyOptions.audioExampleOnReveal !== false) {
+        const rawExample = fields["Đặt câu"] ?? fields["ĐẶT CÂU"] ?? fields["VÍ DỤ"] ?? "";
+        const parsed = rawExample ? parseExample(rawExample.replace(/<[^>]+>/g, "")) : null;
+        void playAudioSequence([
+          ...(studyOptions.audioWordFirst !== false
+            ? [{
+                audioUrl,
+                text: fields["Tiếng Trung"] || fields["CHỮ HÁN"] || current.front,
+                lang: "zh-CN" as const,
+              }]
+            : []),
+          ...(parsed?.chinese ? [{ audioUrl: null, text: parsed.chinese, lang: "zh-CN" as const }] : []),
+        ]);
+      }
+    };
+    if (delay > 0) window.setTimeout(run, delay);
+    else run();
+  }, [fields, current, section, studyOptions, playAudio]);
 
+  const flipCard = useCallback(() => {
+    setFlipped(true);
+    playFlipAudio();
+    focusStudy();
+  }, [playFlipAudio]);
+
+  useEffect(() => {
+    if (phase !== "study" || !current || !fields || flipped) return;
+    if (section !== "grammar") return;
+    const delay = studyOptions.audioDelayMs ?? 0;
+    const run = () => {
+      const vi =
+        fields["NGHĨA TIẾNG VIỆT"] ||
+        fields["Nghĩa tiếng Việt"] ||
+        fields.Back ||
+        current.back ||
+        "";
+      playAudio(null, vi, "vi-VN");
+    };
+    if (delay > 0) window.setTimeout(run, delay);
+    else run();
+  }, [phase, section, index, current?.id, flipped, fields, studyOptions.audioDelayMs, playAudio]);
 
   const rate = useCallback(async (rating: 1 | 2 | 3 | 4) => {
 
@@ -311,6 +381,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
     const isLast = atIndex + 1 >= cards.length;
 
     setFlipped(false);
+    setHintVisible(false);
     setSessionCount((n) => n + 1);
 
     if (isLast) {
@@ -371,10 +442,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
       e.preventDefault();
       e.stopPropagation();
       if (flipped) void rateRef.current(3);
-      else {
-        setFlipped(true);
-        focusStudy();
-      }
+      else flipCard();
       return;
     }
 
@@ -408,42 +476,6 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
     el.addEventListener("click", onClick);
     return () => el.removeEventListener("click", onClick);
   }, [flipped, current?.id, fields]);
-
-  useEffect(() => {
-    if (phase !== "study" || !current || !fields) return;
-
-    const audioUrl =
-      fields["ÂM THANH"] ||
-      fields.Audio ||
-      current.audioUrl ||
-      null;
-
-    if (section === "grammar") {
-      if (!flipped) {
-        const vi =
-          fields["NGHĨA TIẾNG VIỆT"] ||
-          fields["Nghĩa tiếng Việt"] ||
-          fields.Back ||
-          current.back ||
-          "";
-        playAudio(null, vi, "vi-VN");
-      } else {
-        const cn = fields["CHỮ HÁN"] || fields["Tiếng Trung"] || fields.Front || current.front || "";
-        playAudio(audioUrl, cn, "zh-CN");
-      }
-      return;
-    }
-
-    if (section === "common" && flipped) {
-      const cn =
-        fields["CÂU TRẢ LỜI"] ||
-        fields["Tiếng Trung"] ||
-        fields.Back ||
-        current.back ||
-        "";
-      playAudio(audioUrl, cn, "zh-CN");
-    }
-  }, [phase, section, flipped, current?.id, fields]);
 
   useEffect(() => {
     if (phase === "study") focusStudy();
@@ -594,19 +626,30 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
         <div
           onClick={(e) => {
             if ((e.target as HTMLElement).closest(".audio-btn, [data-audio]")) return;
-            if (!flipped) setFlipped(true);
-            focusStudy();
+            if (!flipped) flipCard();
           }}
           className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-4 md:p-5 shadow-sm text-left transition hover:border-emerald-400 cursor-pointer flex flex-col w-full max-w-[48rem] h-[520px] min-h-[520px] max-h-[520px] mx-auto overflow-hidden shrink-0"
           style={{ height: 520, minHeight: 520, maxHeight: 520, width: "100%", maxWidth: "48rem" }}
         >
           <div
+            key={`card-${current.id}-${index}-${flipped ? "back" : "front"}`}
             ref={cardRef}
             className="anki-card-content flex-1 min-h-0 w-full text-left overflow-y-auto"
             dangerouslySetInnerHTML={{ __html: html }}
           />
         </div>
       </div>
+
+      {!flipped && hintLines.length > 0 && (
+        <div className="px-4 pb-2 shrink-0">
+          <StudyHintBar
+            hints={hintLines}
+            label={studyOptions.hintLabel}
+            visible={hintVisible}
+            onToggle={() => setHintVisible((v) => !v)}
+          />
+        </div>
+      )}
 
       <div className="study-action-bar shrink-0 px-4 pb-5 space-y-3">
 
@@ -618,7 +661,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
               type="button"
 
-              onClick={() => setFlipped(true)}
+              onClick={flipCard}
 
               className="hsk-show-btn px-10 py-2.5"
 

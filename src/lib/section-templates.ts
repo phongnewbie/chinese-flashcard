@@ -1,10 +1,14 @@
 import { getSectionPreset } from "@/lib/section-presets";
 import type { HskCategoryId } from "@/lib/hsk-levels";
+import { resolveStudyOptions, type SectionStudyOptions } from "@/lib/study-options";
+
+export type { SectionStudyOptions };
 
 export type SectionTemplateSet = {
   frontTemplate: string;
   backTemplate: string;
   cardCss: string;
+  studyOptions?: SectionStudyOptions;
 };
 
 export type SectionTemplatesMap = Partial<Record<HskCategoryId, SectionTemplateSet>>;
@@ -42,15 +46,17 @@ export function resolveCourseTemplates(
   const preset = presetTemplatesForSection(section);
 
   const global = globalTemplates?.[section as HskCategoryId];
+  const studyOptions = resolveStudyOptions(section, global?.studyOptions);
   if (global?.frontTemplate?.trim()) {
     return {
       frontTemplate: global.frontTemplate,
       backTemplate: global.backTemplate?.trim() || preset.backTemplate,
       cardCss: global.cardCss?.trim() || preset.cardCss,
+      studyOptions,
     };
   }
 
-  return preset;
+  return { ...preset, studyOptions };
 }
 
 export function sampleCardForSection(section: string) {

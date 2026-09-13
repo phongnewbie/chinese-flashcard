@@ -17,11 +17,12 @@ import { requiredFieldLabels, getSectionPreset } from "@/lib/section-presets";
 import { STUDY_SECTIONS, sectionLabel, type StudySectionId } from "@/lib/sections";
 import { AnkiBrowseDeckTree } from "./anki-browse-deck-tree";
 import { AnkiFieldsDialog } from "./anki-fields-dialog";
-import { AnkiImageField, fieldImagePreview } from "./anki-image-field";
+import { AnkiImageField } from "./anki-image-field";
 import { AnkiRichField } from "./anki-rich-field";
 import {
   applyImageToFieldValue,
   clipboardImageFile,
+  extractAllImageSrcFromField,
   fieldUsesImageEditor,
   uploadImageFile,
   usesRichEditorField,
@@ -959,10 +960,11 @@ export function AnkiBrowse({
                             }}
                           />
                         )}
-                        {!fieldUsesImageEditor(f.label, f.value, f.isImage) && /<img\b/i.test(f.value) && fieldImagePreview(f.value) && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={fieldImagePreview(f.value)!} alt="" className="img-inline" />
-                        )}
+                        {!fieldUsesImageEditor(f.label, f.value, f.isImage) &&
+                          extractAllImageSrcFromField(f.value).map((src) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img key={src} src={src} alt="" className="img-inline" />
+                          ))}
                       </div>
                     </div>
                   ))}

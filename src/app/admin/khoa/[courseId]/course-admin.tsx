@@ -327,6 +327,7 @@ export function CourseAdmin({ courseId }: { courseId: string }) {
 
       {templateDialog && course.primarySection && (
         <SectionTemplateEditor
+          key={course.primarySection}
           sectionId={course.primarySection as HskCategoryId}
           label={categoryDeckLabel(
             course.primarySection as HskCategoryId,
