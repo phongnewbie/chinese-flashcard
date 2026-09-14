@@ -804,7 +804,9 @@
 }
 
 .anki-image-wrap {
-  display: block;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   padding: 4px 0 6px;
 }
 

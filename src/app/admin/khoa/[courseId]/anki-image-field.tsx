@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   applyImageAlign,
-  extractImageSrcFromField,
+  extractAllImageSrcFromField,
   parseImageAlign,
   type ImageAlign,
 } from "@/lib/paste-image";
@@ -17,9 +17,10 @@ type Props = {
 };
 
 export function AnkiImageField({ value, uploading, onChange, onFocus, onPaste }: Props) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [selected, setSelected] = useState(false);
-  const src = extractImageSrcFromField(value);
+  const srcs = extractAllImageSrcFromField(value);
+  const src = srcs[0] ?? null;
   const align = parseImageAlign(value);
 
   const setAlign = (next: ImageAlign) => {
@@ -42,17 +43,20 @@ export function AnkiImageField({ value, uploading, onChange, onFocus, onPaste }:
         {src ? (
           <>
             <div className={`anki-image-wrap align-${align}`}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={src}
-                alt=""
-                title="ấn để mở rộng"
-                onClick={() => setExpanded(true)}
-                draggable={false}
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).alt = "Không tải được ảnh — thử paste lại";
-                }}
-              />
+              {srcs.map((s) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={s}
+                  src={s}
+                  alt=""
+                  title="ấn để mở rộng"
+                  onClick={() => setExpanded(s)}
+                  draggable={false}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).alt = "Không tải được ảnh — thử paste lại";
+                  }}
+                />
+              ))}
             </div>
             <div className="anki-image-toolbar">
               <button type="button" title="Căn trái" className={align === "left" ? "on" : ""} onClick={() => setAlign("left")}>
@@ -80,10 +84,10 @@ export function AnkiImageField({ value, uploading, onChange, onFocus, onPaste }:
         )}
       </div>
 
-      {expanded && src && (
-        <div className="anki-image-lightbox" onClick={() => setExpanded(false)}>
+      {expanded && (
+        <div className="anki-image-lightbox" onClick={() => setExpanded(null)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt="" onClick={(e) => e.stopPropagation()} />
+          <img src={expanded} alt="" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
     </>
@@ -91,5 +95,5 @@ export function AnkiImageField({ value, uploading, onChange, onFocus, onPaste }:
 }
 
 export function fieldImagePreview(value: string): string | null {
-  return extractImageSrcFromField(value);
+  return extractAllImageSrcFromField(value)[0] ?? null;
 }

@@ -40,8 +40,9 @@ export function expandCardsWithTypes(
   cardTypes: CardTypeDef[],
 ): Array<{ card: FlashcardRow; cardType: CardTypeDef }> {
   const out: Array<{ card: FlashcardRow; cardType: CardTypeDef }> = [];
-  for (const card of cards) {
-    for (const ct of cardTypes) {
+  // Duyệt theo kiểu thẻ trước, rồi từng note — tránh liền kề Việt→Trung / Trung→Việt của cùng một từ
+  for (const ct of cardTypes) {
+    for (const card of cards) {
       out.push({ card, cardType: ct });
     }
   }

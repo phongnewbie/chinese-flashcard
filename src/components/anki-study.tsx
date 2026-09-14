@@ -27,7 +27,7 @@ import {
 } from "@/lib/card-template";
 import type { CardTypeDef } from "@/lib/card-types";
 import { StudyHintBar } from "@/components/study-hint-bar";
-import { playAudioOrTts, playAudioSequence, resolveSoundPlayUrl } from "@/lib/anki-sound";
+import { playAudioOrTts, playAudioSequence, resolveSoundPlayUrl, stopStudyAudio } from "@/lib/anki-sound";
 import { sectionLabel, type StudySectionId } from "@/lib/sections";
 import { presetTemplatesForSection, type SectionStudyOptions } from "@/lib/section-templates";
 import { previewIntervals, type ReviewState } from "@/lib/srs";
@@ -124,6 +124,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
   const cardRef = useRef<HTMLDivElement>(null);
   const studyRef = useRef<HTMLDivElement>(null);
   const ratingLockRef = useRef(false);
+  const audioGenRef = useRef(0);
 
   const onStatsRef = useRef(onStats);
   const rateRef = useRef<(rating: 1 | 2 | 3 | 4) => Promise<void>>(async () => {});
@@ -316,7 +317,10 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
   const playFlipAudio = useCallback(() => {
     if (!fields || !current) return;
     const delay = studyOptions.audioDelayMs ?? 0;
+    const gen = ++audioGenRef.current;
+    stopStudyAudio();
     const run = () => {
+      if (gen !== audioGenRef.current) return;
       const audioUrl = fields["ÂM THANH"] || fields.Audio || current.audioUrl || null;
       if (section === "grammar") {
         const cn = fields["CHỮ HÁN"] || fields["Tiếng Trung"] || fields.Front || current.front || "";
@@ -357,7 +361,9 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
     if (phase !== "study" || !current || !fields || flipped) return;
     if (section !== "grammar") return;
     const delay = studyOptions.audioDelayMs ?? 0;
+    const gen = ++audioGenRef.current;
     const run = () => {
+      if (gen !== audioGenRef.current) return;
       const vi =
         fields["NGHĨA TIẾNG VIỆT"] ||
         fields["Nghĩa tiếng Việt"] ||
@@ -375,6 +381,8 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
     if (!current || phase !== "study" || ratingLockRef.current) return;
 
     ratingLockRef.current = true;
+    audioGenRef.current += 1;
+    stopStudyAudio();
 
     const rated = current;
     const atIndex = index;

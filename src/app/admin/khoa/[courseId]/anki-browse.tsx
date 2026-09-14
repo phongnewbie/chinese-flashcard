@@ -902,6 +902,7 @@ export function AnkiBrowse({
                       <div className="anki-field-body">
                         {fieldUsesImageEditor(f.label, f.value, f.isImage) ? (
                           <AnkiImageField
+                            key={`${selectedId ?? "none"}-${f.key}`}
                             value={f.value}
                             uploading={imageUploading && focusedFieldRef.current?.key === f.key}
                             onChange={(v) => updateField(f.key, v)}
@@ -910,6 +911,7 @@ export function AnkiBrowse({
                           />
                         ) : usesRichEditor(f) ? (
                           <AnkiRichField
+                            key={`${selectedId ?? "none"}-${f.key}`}
                             value={f.value}
                             uploading={imageUploading && focusedFieldRef.current?.key === f.key}
                             onChange={(v) => updateField(f.key, v)}

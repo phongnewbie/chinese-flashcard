@@ -68,11 +68,12 @@ export function AnkiRichField({
   minHeight = 88,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const lastValueRef = useRef(value);
+  const lastValueRef = useRef<string | null>(null);
 
   useEffect(() => {
     const el = ref.current;
-    if (!el || value === lastValueRef.current) return;
+    if (!el) return;
+    if (value === lastValueRef.current) return;
     lastValueRef.current = value;
     const html = normalizeRichHtml(value);
     if (el.innerHTML !== html) {

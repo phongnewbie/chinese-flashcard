@@ -17,7 +17,7 @@ import { renderCardTemplate, toCardFields } from "@/lib/card-template";
 import { presetTemplatesForSection, type SectionStudyOptions } from "@/lib/section-templates";
 import type { CardTypeDef } from "@/lib/card-types";
 import { previewIntervals } from "@/lib/srs";
-import { playAudioOrTts, playAudioSequence, type AudioPlayItem } from "@/lib/anki-sound";
+import { playAudioOrTts, playAudioSequence, stopStudyAudio, type AudioPlayItem } from "@/lib/anki-sound";
 import { hintLinesFromFields, resolveStudyOptions } from "@/lib/study-options";
 import { parseExample } from "@/lib/hsk-card";
 
@@ -92,6 +92,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   const cardContentRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const ratingLockRef = useRef(false);
+  const audioGenRef = useRef(0);
   const onStatsRef = useRef(onStats);
   onStatsRef.current = onStats;
 
@@ -197,7 +198,10 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   const playRevealAudio = useCallback(
     (card: HskCardView, fields: Record<string, string> | null) => {
       const delay = studyOptions.audioDelayMs ?? 0;
+      const gen = ++audioGenRef.current;
+      stopStudyAudio();
       const run = () => {
+        if (gen !== audioGenRef.current) return;
         const items: AudioPlayItem[] = [];
         if (studyOptions.audioWordFirst !== false) {
           items.push({ audioUrl: card.audioUrl, text: card.answer, lang: "zh-CN" });
@@ -229,6 +233,8 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
   const rate = async (rating: 1 | 2 | 3 | 4) => {
     if (!current || !currentRaw || ratingLockRef.current) return;
     ratingLockRef.current = true;
+    audioGenRef.current += 1;
+    stopStudyAudio();
     const rated = current;
     const ratedRaw = currentRaw;
     const atIndex = index;

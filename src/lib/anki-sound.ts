@@ -44,6 +44,21 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
+let currentAudio: HTMLAudioElement | null = null;
+let ttsTimer: number | null = null;
+
+export function stopStudyAudio() {
+  currentAudio?.pause();
+  currentAudio = null;
+  if (typeof window !== "undefined") {
+    if (ttsTimer != null) {
+      window.clearTimeout(ttsTimer);
+      ttsTimer = null;
+    }
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  }
+}
+
 function audioButtonHtml(url: string, text = ""): string {
   const resolved = resolveSoundPlayUrl(url);
   const dataText = text ? ` data-text="${escapeHtml(text)}"` : "";
@@ -70,7 +85,8 @@ export function playSpeechTts(text: string, lang = "zh-CN"): Promise<void> {
       utterance.onerror = () => resolve();
       window.speechSynthesis.cancel();
       // Trì hoãn ngắn — tránh TTS bị nuốt lần phát đầu (Chrome)
-      window.setTimeout(() => {
+      ttsTimer = window.setTimeout(() => {
+        ttsTimer = null;
         try {
           window.speechSynthesis.speak(utterance);
         } catch {
@@ -105,7 +121,9 @@ export function playAudioOrTts(
 
     if (audioUrl && audioUrl.trim()) {
       const src = resolveSoundPlayUrl(audioUrl);
+      stopStudyAudio();
       const audio = new Audio(src);
+      currentAudio = audio;
       let resolved = false;
 
       const finish = () => {
@@ -141,6 +159,7 @@ export function playAudioOrTts(
     }
 
     if (cleanText) {
+      stopStudyAudio();
       void playSpeechTts(cleanText, lang).then(resolve);
     } else {
       resolve();

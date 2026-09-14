@@ -122,9 +122,9 @@ export function imageFieldHtml(url: string, align: ImageAlign = "center"): strin
 }
 
 export function applyImageAlign(value: string, align: ImageAlign): string {
-  const src = extractImageSrcFromField(value);
-  if (!src) return value;
-  return imageFieldHtml(src, align);
+  const srcs = extractAllImageSrcFromField(value);
+  if (!srcs.length) return value;
+  return srcs.map((src) => imageFieldHtml(src, align)).join("");
 }
 
 /** Chèn ảnh vào giá trị trường (Anki-style) */
@@ -136,7 +136,9 @@ export function applyImageToFieldValue(
 ): string {
   const { url } = upload;
   if (opts.isImageField) {
-    return imageFieldHtml(url, "center");
+    const existing = extractAllImageSrcFromField(current);
+    const align = parseImageAlign(current);
+    return [...existing, url].map((src) => imageFieldHtml(src, align)).join("");
   }
   if (opts.multiline) {
     const tag = `<img src="${url.replace(/"/g, "")}" alt="" class="field-img" />`;
