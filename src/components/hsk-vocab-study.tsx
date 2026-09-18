@@ -13,6 +13,7 @@ import {
   type DeckStats,
 } from "@/components/anki-deck-overview";
 import { StudyHintBar } from "@/components/study-hint-bar";
+import { htmlHasSlot, TemplateSlots } from "@/components/template-slots";
 import { renderCardTemplate, toCardFields } from "@/lib/card-template";
 import { presetTemplatesForSection, type SectionStudyOptions } from "@/lib/section-templates";
 import type { CardTypeDef } from "@/lib/card-types";
@@ -431,34 +432,68 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
           <div ref={cardContentRef} className="study-card-scroll flex-1 min-h-0 flex flex-col w-full h-full overflow-hidden">
             {!revealed ? (
               <div key={`front-${current.id}-${index}`} className="flex-1 min-h-0 w-full flex flex-col justify-between py-1">
-                <div
+                <TemplateSlots
+                  html={frontHtml}
                   className="anki-card-content flex-1 min-h-0 w-full text-left overflow-y-auto"
-                  dangerouslySetInnerHTML={{ __html: frontHtml }}
+                  slots={{
+                    STUDY_HINT: (
+                      <StudyHintBar
+                        hints={hintLines}
+                        label={studyOptions.hintLabel}
+                        visible={hintVisible}
+                        onToggle={() => setHintVisible((v) => !v)}
+                      />
+                    ),
+                    STUDY_INPUT: (
+                      <div className="max-w-md mx-auto w-full py-2 shrink-0">
+                        <input
+                          ref={inputRef}
+                          type="text"
+                          value={typed}
+                          onChange={(e) => setTyped(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              showAnswer();
+                            }
+                          }}
+                          placeholder={studyOptions.inputPlaceholder || ui.placeholder}
+                          className="hsk-input w-full rounded-xl px-4 py-3 text-xl text-center outline-none font-medium shadow-inner"
+                          autoFocus
+                          lang={ui.inputLang}
+                        />
+                      </div>
+                    ),
+                  }}
                 />
-                <StudyHintBar
-                  hints={hintLines}
-                  label={studyOptions.hintLabel}
-                  visible={hintVisible}
-                  onToggle={() => setHintVisible((v) => !v)}
-                />
-                <div className="max-w-md mx-auto w-full pt-2 shrink-0">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={typed}
-                    onChange={(e) => setTyped(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        showAnswer();
-                      }
-                    }}
-                    placeholder={ui.placeholder}
-                    className="hsk-input w-full rounded-xl px-4 py-3 text-xl text-center outline-none font-medium shadow-inner"
-                    autoFocus
-                    lang={ui.inputLang}
+                {!htmlHasSlot(frontHtml, "STUDY_HINT") && (
+                  <StudyHintBar
+                    hints={hintLines}
+                    label={studyOptions.hintLabel}
+                    visible={hintVisible}
+                    onToggle={() => setHintVisible((v) => !v)}
                   />
-                </div>
+                )}
+                {!htmlHasSlot(frontHtml, "STUDY_INPUT") && (
+                  <div className="max-w-md mx-auto w-full pt-2 shrink-0">
+                    <input
+                      ref={htmlHasSlot(frontHtml, "STUDY_INPUT") ? undefined : inputRef}
+                      type="text"
+                      value={typed}
+                      onChange={(e) => setTyped(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          showAnswer();
+                        }
+                      }}
+                      placeholder={studyOptions.inputPlaceholder || ui.placeholder}
+                      className="hsk-input w-full rounded-xl px-4 py-3 text-xl text-center outline-none font-medium shadow-inner"
+                      autoFocus
+                      lang={ui.inputLang}
+                    />
+                  </div>
+                )}
               </div>
             ) : (
               <HskAnswerBack

@@ -4,6 +4,8 @@ export type SectionStudyOptions = {
   audioExampleOnReveal?: boolean;
   hintFields?: string;
   hintLabel?: string;
+  /** Placeholder ô gõ chữ khi học */
+  inputPlaceholder?: string;
 };
 
 export function defaultStudyOptionsForSection(section: string): SectionStudyOptions {
@@ -15,6 +17,7 @@ export function defaultStudyOptionsForSection(section: string): SectionStudyOpti
         audioExampleOnReveal: true,
         hintFields: "CẤU TRÚC,CÁCH DÙNG",
         hintLabel: "Gợi ý",
+        inputPlaceholder: "Gõ nghĩa tiếng Việt...",
       };
     case "vocabulary":
       return {
@@ -23,6 +26,7 @@ export function defaultStudyOptionsForSection(section: string): SectionStudyOpti
         audioExampleOnReveal: true,
         hintFields: "Nghĩa hán việt,Loại từ",
         hintLabel: "Gợi ý",
+        inputPlaceholder: "Gõ chữ Hán...",
       };
     case "common":
       return {
@@ -31,6 +35,7 @@ export function defaultStudyOptionsForSection(section: string): SectionStudyOpti
         audioExampleOnReveal: false,
         hintFields: "VÍ DỤ",
         hintLabel: "Gợi ý",
+        inputPlaceholder: "Gõ cụm tiếng Trung...",
       };
     default:
       return {
@@ -39,6 +44,7 @@ export function defaultStudyOptionsForSection(section: string): SectionStudyOpti
         audioExampleOnReveal: true,
         hintFields: "",
         hintLabel: "Gợi ý",
+        inputPlaceholder: "Gõ đáp án...",
       };
   }
 }

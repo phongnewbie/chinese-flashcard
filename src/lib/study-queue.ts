@@ -118,15 +118,27 @@ export function buildStudyQueue(opts: {
     queue = [...learningDue, ...dueGraduated, ...newBatch];
   }
 
+  const uniqueNotes = (list: QueueCard[]) => new Set(list.map((c) => c.id)).size;
+  const queueByNote: QueueCard[] = [];
+  const seenNotes = new Set<string>();
+  for (const item of queue) {
+    if (seenNotes.has(item.id)) continue;
+    seenNotes.add(item.id);
+    queueByNote.push(item);
+  }
+
   const stats = {
-    total: enriched.length,
-    due: dueGraduated.length + learning.filter((c) => isDue(c.srs.dueAt, now)).length,
-    new: newCards.length,
-    learning: learning.length,
-    queue: queue.length,
+    total: uniqueNotes(enriched),
+    due: uniqueNotes([
+      ...dueGraduated,
+      ...learning.filter((c) => isDue(c.srs.dueAt, now)),
+    ]),
+    new: uniqueNotes(newCards),
+    learning: uniqueNotes(learning),
+    queue: queueByNote.length,
   };
 
-  return { queue, stats };
+  return { queue: queueByNote, stats };
 }
 
 export function cardMatchesTag(card: FlashcardRow, tag: string): boolean {

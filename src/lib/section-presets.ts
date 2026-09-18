@@ -98,6 +98,36 @@ const BASE_CARD_CSS = `.card {
   font-size: 2rem;
   margin-top: 0.85rem;
   opacity: 0.85;
+}
+.so-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #44403c;
+  margin-bottom: 0.75rem;
+}
+.so-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+.so-chip {
+  display: inline-block;
+  border: 1px solid #e7e5e4;
+  background: #fff;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 1.125rem;
+}
+.so-drop {
+  min-height: 4.5rem;
+  border: 2px dashed #a7f3d0;
+  background: #ecfdf5;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  color: #a8a29e;
+  font-size: 0.875rem;
+  text-align: center;
 }`;
 
 /** Từ vựng — đúng thứ tự cột Excel */
@@ -127,7 +157,8 @@ const VOCABULARY_PRESET: SectionPreset = {
   {{#${VOCAB_FIELDS.pos}}}<div class="meta-row"><strong>Loại từ:</strong> {{${VOCAB_FIELDS.pos}}}</div>{{/${VOCAB_FIELDS.pos}}}
   {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
   {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
-  <p class="hint">Enter / Space — lật thẻ</p>
+  {{GỢI Ý}}
+  {{GÕ CHỮ}}
 </div>`,
   backTemplate: `<div class="card back">
   <div class="hanzi">{{${VOCAB_FIELDS.chinese}}}</div>
@@ -189,19 +220,19 @@ const SENTENCE_ORDER_PRESET: SectionPreset = {
     field("ẢNH", { description: "Paste ảnh trực tiếp (Ctrl+V)" }),
   ],
   frontTemplate: `<div class="card front">
-  <div class="example"><strong>Sắp xếp các mảnh:</strong><br>{{Front}}</div>
+  <p class="so-title">Sắp xếp các mảnh theo đúng thứ tự</p>
+  {{Ô ĐÁP ÁN}}
+  {{GHÉP CÂU}}
   {{#NGHĨA}}<div class="meta-row">{{NGHĨA}}</div>{{/NGHĨA}}
   {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
-  {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
-  <p class="hint">Enter / Space — lật thẻ</p>
 </div>`,
   backTemplate: `<div class="card back">
-  <div class="answer-cn">{{Back}}</div>
+  <div class="answer-cn">{{CÂU ĐÚNG}}</div>
+  {{#PINYIN}}<div class="pinyin">{{PINYIN}}</div>{{/PINYIN}}
   {{#Pinyin}}<div class="pinyin">{{Pinyin}}</div>{{/Pinyin}}
-  {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
   {{#NGHĨA}}<div class="meaning">{{NGHĨA}}</div>{{/NGHĨA}}
+  {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
   {{#GHI CHÚ}}<div class="note">{{GHI CHÚ}}</div>{{/GHI CHÚ}}
-  {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
 </div>`,
   cardCss: BASE_CARD_CSS,
   cardTypes: [{ id: "default", label: "Default", ord: 0 }],

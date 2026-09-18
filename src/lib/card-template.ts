@@ -93,19 +93,38 @@ function isImageFilename(val: string): boolean {
   return /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(val) && !/<img/i.test(val);
 }
 
+function isSafeImageSrc(src: string): boolean {
+  const s = src.trim();
+  return /^(https?:\/\/|\/\/|\/|data:|uploads\/)/i.test(s);
+}
+
+function looksLikeImageValue(val: string): boolean {
+  const t = val.trim();
+  if (!t) return false;
+  if (/<img\b/i.test(t) || /field-img-wrap/i.test(t)) return true;
+  if (isImageFilename(t)) return true;
+  if (/^\/uploads\/images\//i.test(t)) return true;
+  return false;
+}
+
 /** Giữ thẻ img an toàn */
 function sanitizeEmbeddedImages(html: string): string {
   let out = html.replace(
-    /<div\b[^>]*class=["'][^"']*field-img-wrap[^"']*["'][^>]*style=["']text-align:([^"']+)["'][^>]*>([\s\S]*?)<\/div>/gi,
-    (_full, align: string, inner: string) => {
-      const img = inner.match(/<img\b[^>]*\ssrc=["']([^"']+)["']/i);
-      if (!img?.[1] || !/^(\/|https?:\/\/|data:)/i.test(img[1].trim())) return "";
-      return `<div class="field-img-wrap align-${escapeHtml(align.trim())}" style="text-align:${escapeHtml(align.trim())}">${sanitizeEmbeddedImages(inner)}</div>`;
+    /<div\b[^>]*class=["'][^"']*field-img-wrap[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi,
+    (_full, inner: string) => {
+      const imgs = sanitizeEmbeddedImages(inner);
+      if (!imgs.includes("<img")) return "";
+      return `<div class="field-img-wrap">${imgs}</div>`;
     },
   );
-  out = out.replace(/<img\b[^>]*\ssrc=["']([^"']+)["'][^>]*\/?>/gi, (_full, src: string) => {
-    if (!/^(\/|https?:\/\/|data:)/i.test(src.trim())) return "";
-    return `<img src="${escapeHtml(src.trim())}" alt="" class="field-img" />`;
+  out = out.replace(/<img\b[^>]*>/gi, (full) => {
+    const srcMatch = full.match(/\ssrc=["']([^"']+)["']/i);
+    const src = srcMatch?.[1]?.trim() ?? "";
+    if (!src) return "";
+    const resolved = /^(\/|https?:\/\/|data:)/i.test(src) ? src : resolveImageSrc(src);
+    if (!isSafeImageSrc(resolved) && !isSafeImageSrc(src)) return "";
+    const finalSrc = isSafeImageSrc(src) ? src : resolved;
+    return `<img src="${escapeHtml(finalSrc)}" alt="" class="field-img" />`;
   });
   return out;
 }
@@ -146,6 +165,26 @@ function exampleFieldHtml(val: string): string {
   return `${parts.join(' <span class="example-sep">/</span> ')} ${btn}`.trim();
 }
 
+function sentencePiecesHtml(val: string): string {
+  const raw = val.replace(/<[^>]+>/g, " ").trim();
+  const parts = raw.includes("|")
+    ? raw.split("|")
+    : raw.includes("/")
+      ? raw.split("/")
+      : raw.split(/\s+/);
+  const chips = parts
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((p) => `<span class="so-chip">${escapeHtml(p)}</span>`)
+    .join("");
+  return `<div class="so-chips">${chips}</div>`;
+}
+
+function isPiecesFieldKey(key: string): boolean {
+  const k = key.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+  return k.includes("manh cau") || k === "front";
+}
+
 function fieldToHtml(key: string, val: string, side: "front" | "back", fieldsContext?: TemplateFields): string {
   if (!val) return "";
   const k = key.toLowerCase();
@@ -156,6 +195,14 @@ function fieldToHtml(key: string, val: string, side: "front" | "back", fieldsCon
     fieldsContext?.["Front"] ||
     fieldsContext?.["CÂU ĐÚNG"] ||
     "";
+
+  if (looksLikeImageValue(trimmed) || isImageFieldKey(k)) {
+    if (/<img\b/i.test(val) || /field-img-wrap/i.test(val)) {
+      return sanitizeEmbeddedImages(val);
+    }
+    const src = escapeHtml(resolveImageSrc(trimmed));
+    if (src) return `<div class="card-image"><img src="${src}" alt="" class="field-img" /></div>`;
+  }
 
   if (isAudioFieldKey(k) || isPlayableAudio(trimmed)) {
     if (isPlayableAudio(trimmed)) {
@@ -168,6 +215,9 @@ function fieldToHtml(key: string, val: string, side: "front" | "back", fieldsCon
 
   if (isExampleFieldKey(key)) {
     return exampleFieldHtml(val);
+  }
+  if (fieldsContext?.Section === "sentence_order" && isPiecesFieldKey(key) && side === "front") {
+    return sentencePiecesHtml(val);
   }
   if (/<img\b/i.test(val) || /field-img-wrap/i.test(val)) {
     return sanitizeEmbeddedImages(val);
@@ -196,7 +246,7 @@ function appendMissingAudioFields(html: string, fields: TemplateFields, side: "f
 }
 
 function appendMissingImageFields(html: string, fields: TemplateFields, side: "front" | "back"): string {
-  if (/field-img|card-image/i.test(html)) return html;
+  if (/<img\b/i.test(html)) return html;
   const blocks: string[] = [];
   for (const [key, val] of Object.entries(fields)) {
     if (!val?.trim()) continue;
@@ -229,9 +279,34 @@ export function renderCardTemplate(
     html = html.replaceAll(`{{${key}}}`, rendered);
   }
 
+  html = html.replace(/\{\{\s*(GÕ CHỮ|GO CHU|INPUT|TYPE INPUT)\s*\}\}/gi, "<!--__STUDY_INPUT__-->");
+  html = html.replace(/\{\{\s*(GỢI Ý|GOI Y|HINT)\s*\}\}/gi, "<!--__STUDY_HINT__-->");
+  html = html.replace(/\{\{\s*(GHÉP CÂU|GHEP CAU|PIECES)\s*\}\}/gi, "<!--__STUDY_PIECES__-->");
+  html = html.replace(/\{\{\s*(Ô ĐÁP ÁN|O DAP AN|ANSWER BOX)\s*\}\}/gi, "<!--__STUDY_ANSWER_BOX__-->");
+
   html = html.replace(/\{\{[^}]+\}\}/g, "");
   html = appendMissingImageFields(html, fields, side);
   return appendMissingAudioFields(html, fields, side);
+}
+
+export function fillStudyMarkersForPreview(html: string): string {
+  return html
+    .replaceAll(
+      "<!--__STUDY_INPUT__-->",
+      `<input class="hsk-input" style="width:100%;max-width:22rem;margin:0.75rem auto;display:block;padding:0.65rem 1rem;border-radius:0.75rem;border:2px solid #e5e5e5;text-align:center" placeholder="Gõ chữ Hán..." disabled />`,
+    )
+    .replaceAll(
+      "<!--__STUDY_HINT__-->",
+      `<div style="text-align:center;margin:0.5rem 0"><span style="display:inline-block;border-radius:9999px;border:1px solid #6ee7b7;background:#ecfdf5;padding:0.25rem 0.9rem;font-size:0.875rem;color:#065f46">💡 Gợi ý</span></div>`,
+    )
+    .replaceAll(
+      "<!--__STUDY_ANSWER_BOX__-->",
+      `<div class="so-drop">Câu của bạn sẽ hiện ở đây…</div>`,
+    )
+    .replaceAll(
+      "<!--__STUDY_PIECES__-->",
+      `<div class="so-chips"><span class="so-chip">我</span><span class="so-chip">喜欢</span><span class="so-chip">学习</span><span class="so-chip">中文</span></div>`,
+    );
 }
 
 export function getCourseTemplates(
