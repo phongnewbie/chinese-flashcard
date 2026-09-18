@@ -18,7 +18,11 @@ pick_data_dir() {
 
 DATA_ROOT="$(pick_data_dir)"
 export DATA_DIR="$DATA_ROOT"
-export UPLOAD_DIR="${UPLOAD_DIR:-${DATA_ROOT}/uploads}"
+if [ -n "${UPLOAD_DIR:-}" ] && ! mkdir -p "$UPLOAD_DIR" 2>/dev/null; then
+  export UPLOAD_DIR="${DATA_ROOT}/uploads"
+else
+  export UPLOAD_DIR="${UPLOAD_DIR:-${DATA_ROOT}/uploads}"
+fi
 
 # Neon/Postgres: giữ DATABASE_URL từ Render env. SQLite fallback khi chưa set.
 if [ -z "${DATABASE_URL:-}" ] || [[ "${DATABASE_URL}" == file:* ]]; then
@@ -34,7 +38,27 @@ else
   echo "DATABASE_URL=$DATABASE_URL"
 fi
 
-npx prisma migrate deploy
+# Chạy migration — tự động retry tối đa 3 lần nếu Neon Serverless đang ngủ (cold-start)
+MAX_RETRIES=3
+RETRY_DELAY=5
+MIGRATE_SUCCESS=0
+
+for i in $(seq 1 $MAX_RETRIES); do
+  echo "Applying database migrations (attempt $i/$MAX_RETRIES)..."
+  if npx prisma migrate deploy; then
+    MIGRATE_SUCCESS=1
+    break
+  fi
+  if [ "$i" -lt "$MAX_RETRIES" ]; then
+    echo "Prisma migrate deploy chưa kết nối được (có thể Neon database đang thức dậy từ cold sleep). Đợi ${RETRY_DELAY}s rồi thử lại..."
+    sleep $RETRY_DELAY
+  fi
+done
+
+if [ "$MIGRATE_SUCCESS" -ne 1 ]; then
+  echo "ERROR: prisma migrate deploy thất bại sau $MAX_RETRIES lần thử." >&2
+  exit 1
+fi
 
 if [[ "${DATABASE_URL}" != postgres* ]]; then
   DB_FILE="${DATA_ROOT}/app.db"

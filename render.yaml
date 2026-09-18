@@ -27,6 +27,8 @@ services:
       # Neon PostgreSQL — điền connection string trên Render Dashboard
       - key: DATABASE_URL
         sync: false
+      - key: DIRECT_URL
+        sync: false
       - key: AUTH_TRUST_HOST
         value: "true"
       - key: AUTH_SECRET

@@ -12,7 +12,10 @@ function createPrisma(): PrismaClient {
         "Ví dụ: postgresql://user:pass@ep-xxx.region.aws.neon.tech/neondb?sslmode=require",
     );
   }
-  const adapter = new PrismaPg({ connectionString: url });
+  const adapter = new PrismaPg({
+    connectionString: url,
+    connectionTimeoutMillis: 15000,
+  });
   return new PrismaClient({ adapter });
 }
 
