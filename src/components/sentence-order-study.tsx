@@ -6,7 +6,10 @@ import {
   AnkiSessionFinished,
   type DeckStats,
 } from "@/components/anki-deck-overview";
+import { htmlHasSlot, TemplateSlots } from "@/components/template-slots";
 import { playAudioOrTts } from "@/lib/anki-sound";
+import { renderCardTemplate, toCardFields } from "@/lib/card-template";
+import { presetTemplatesForSection } from "@/lib/section-templates";
 
 type Card = {
   id: string;
@@ -14,8 +17,16 @@ type Card = {
   back: string;
   pinyin: string | null;
   audioUrl?: string | null;
+  extraFields?: string | null;
+  section?: string;
   cardType?: string;
   srs?: { isNew?: boolean; intervalDays?: number };
+};
+
+type Templates = {
+  frontTemplate: string;
+  backTemplate: string;
+  cardCss: string;
 };
 
 function splitParts(front: string): string[] {
@@ -39,6 +50,7 @@ export function SentenceOrderStudy({
   onModeChange: (mode: "review" | "all" | "new") => void;
 }) {
   const [cards, setCards] = useState<Card[]>([]);
+  const [templates, setTemplates] = useState<Templates | null>(null);
   const [stats, setStats] = useState<DeckStats>({ new: 0, learning: 0, due: 0, queue: 0, total: 0 });
   const [title, setTitle] = useState("SẮP XẾP CÂU");
   const [phase, setPhase] = useState<"overview" | "study" | "finished">("overview");
@@ -57,6 +69,7 @@ export function SentenceOrderStudy({
     setLoading(false);
     if (!res.ok) return;
     setCards(data.cards ?? []);
+    setTemplates(data.templates ?? null);
     setTitle(data.title?.toUpperCase() ?? "SẮP XẾP CÂU");
     setStats({
       new: data.stats?.new ?? 0,
@@ -101,6 +114,20 @@ export function SentenceOrderStudy({
     if (!chinese) return;
     void playAudioOrTts(current.audioUrl, chinese, "zh-CN");
   }, [phase, current?.id, current?.back, current?.audioUrl]);
+
+  const activeTemplates = templates ?? presetTemplatesForSection("sentence_order");
+  const fields = useMemo(
+    () => (current ? toCardFields({ ...current, section: "sentence_order" }) : null),
+    [current],
+  );
+  const frontHtml = useMemo(() => {
+    if (!fields) return "";
+    return renderCardTemplate(activeTemplates.frontTemplate, fields, "front");
+  }, [activeTemplates, fields]);
+  const backHtml = useMemo(() => {
+    if (!fields) return "";
+    return renderCardTemplate(activeTemplates.backTemplate, fields, "back");
+  }, [activeTemplates, fields]);
 
   const submitReview = async (rating: 1 | 3) => {
     if (!current) return;
@@ -184,61 +211,89 @@ export function SentenceOrderStudy({
     }
   };
 
-  const hint = current.pinyin;
-
-  return (
-    <div className="mx-auto max-w-xl space-y-6">
-      <p className="text-sm text-stone-500 text-center">
-        Câu {index + 1} / {cards.length} — Chọn từng mảnh theo đúng thứ tự
-        {current.srs?.isNew && (
-          <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">Mới</span>
-        )}
-      </p>
-
-      <div className="min-h-[72px] rounded-xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 p-4 flex flex-wrap gap-2 justify-center">
-        {picked.length === 0 ? (
-          <span className="text-stone-400 text-sm">Câu của bạn sẽ hiện ở đây…</span>
-        ) : (
-          picked.map((w, i) => (
-            <button
-              key={`p-${i}-${w}`}
-              type="button"
-              onClick={() => unpick(w, i)}
-              className="rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-lg"
-            >
-              {w}
-            </button>
-          ))
-        )}
-      </div>
-
-      <div className="flex flex-wrap gap-2 justify-center">
-        {pool.map((w, i) => (
+  const answerBox = (
+    <div className="min-h-[72px] w-full rounded-xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 p-4 flex flex-wrap gap-2 justify-center">
+      {picked.length === 0 ? (
+        <span className="text-stone-400 text-sm">Câu của bạn sẽ hiện ở đây…</span>
+      ) : (
+        picked.map((w, i) => (
           <button
-            key={`pool-${i}-${w}`}
+            key={`p-${i}-${w}`}
             type="button"
-            onClick={() => pick(w, i)}
-            className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-lg hover:border-emerald-400"
+            onClick={() => unpick(w, i)}
+            className="rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-lg"
           >
             {w}
           </button>
-        ))}
+        ))
+      )}
+    </div>
+  );
+
+  const pieces = (
+    <div className="flex flex-wrap gap-2 justify-center w-full py-2">
+      {pool.map((w, i) => (
+        <button
+          key={`pool-${i}-${w}`}
+          type="button"
+          onClick={() => pick(w, i)}
+          className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-lg hover:border-emerald-400"
+        >
+          {w}
+        </button>
+      ))}
+    </div>
+  );
+
+  const showTemplateSlots =
+    htmlHasSlot(frontHtml, "STUDY_PIECES") || htmlHasSlot(frontHtml, "STUDY_ANSWER_BOX");
+
+  return (
+    <div className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden flex flex-col justify-between">
+      <div className="relative px-4 pt-5 pb-2 shrink-0">
+        <div className="hsk-header-pill mx-auto max-w-md text-center py-2.5 px-6">{title}</div>
+      </div>
+      <p className="text-sm text-stone-500 text-center shrink-0 pb-1">
+        {index + 1} / {cards.length}
+      </p>
+
+      <div className="mx-4 shrink-0 flex justify-center">
+        <style>{activeTemplates.cardCss}</style>
+        <div
+          className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-4 md:p-5 shadow-sm flex flex-col w-full max-w-[48rem] h-[520px] min-h-[520px] max-h-[520px] mx-auto overflow-hidden"
+          style={{ height: 520, minHeight: 520, maxHeight: 520 }}
+        >
+          <div className="anki-card-content flex-1 min-h-0 w-full text-left overflow-y-auto">
+            {checked !== "idle" ? (
+              <div dangerouslySetInnerHTML={{ __html: backHtml }} />
+            ) : showTemplateSlots ? (
+              <TemplateSlots
+                html={frontHtml}
+                slots={{
+                  STUDY_ANSWER_BOX: answerBox,
+                  STUDY_PIECES: pieces,
+                }}
+              />
+            ) : (
+              <div className="space-y-4">
+                {answerBox}
+                {pieces}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {hint && <p className="text-center text-sm text-stone-500">Gợi ý: {hint}</p>}
-
       {checked === "ok" && (
-        <p className="text-center text-emerald-700 font-medium">
-          Đúng rồi! {current.back.includes("\n") ? current.back.split("\n").slice(1).join(" ") : ""}
-        </p>
+        <p className="text-center text-emerald-700 font-medium px-4">Đúng rồi!</p>
       )}
       {checked === "fail" && (
-        <p className="text-center text-red-700 text-sm">
+        <p className="text-center text-red-700 text-sm px-4">
           Chưa đúng. Đáp án: <strong>{current.back.split("\n")[0]}</strong>
         </p>
       )}
 
-      <div className="flex flex-wrap gap-3 justify-center">
+      <div className="study-action-bar shrink-0 px-4 pb-5 flex flex-wrap gap-3 justify-center">
         <button
           type="button"
           onClick={() => resetRound()}

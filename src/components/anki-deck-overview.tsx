@@ -98,7 +98,7 @@ export function AnkiDeckOverview({
       <div className="mx-4 mb-4 rounded-xl bg-white/90 border border-stone-200 shadow-sm p-6 space-y-6">
         <div className="text-center space-y-1">
           <p className="text-sm text-stone-500">{sectionName}</p>
-          <p className="text-xs text-stone-400">Tổng thẻ: {total}</p>
+          <p className="text-xs text-stone-400">Tổng từ/câu: {total}</p>
         </div>
 
         <div className="grid grid-cols-3 gap-3 text-center">

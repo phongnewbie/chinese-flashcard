@@ -4,6 +4,7 @@ import { requireStudyAccess } from "@/lib/study-access";
 import { parseCourseCardTypes } from "@/lib/card-types";
 import { getCourseTemplates } from "@/lib/card-template";
 import { parseSectionTemplates } from "@/lib/section-templates";
+import { statsForCourse } from "@/lib/deck-overview-stats";
 import { ensureAppSettings, prisma } from "@/lib/db";
 import { canAccessCourse } from "@/lib/hsk-enrollment";
 import { buildStudyQueue } from "@/lib/study-queue";
@@ -89,13 +90,22 @@ export async function GET(req: Request, context: RouteContext) {
     where: { userId: session.user.id, cardId: { in: cardIds } },
   });
 
-  const { queue, stats } = buildStudyQueue({
+  const { queue } = buildStudyQueue({
     cards: courseWithCards.cards,
     cardTypes,
     reviews,
     mode,
     maxNew: settings.maxNewPerDay,
   });
+
+  const noteStats = statsForCourse(
+    {
+      primarySection: section,
+      cardTypes: courseWithCards.cardTypes,
+      cards: courseWithCards.cards,
+    },
+    reviews,
+  );
 
   const globalTemplates = parseSectionTemplates(settings.sectionTemplates);
   const templates = getCourseTemplates(courseWithCards, globalTemplates);
@@ -106,7 +116,13 @@ export async function GET(req: Request, context: RouteContext) {
     section,
     primarySection: courseWithCards.primarySection,
     mode,
-    stats,
+    stats: {
+      new: noteStats.new,
+      learning: noteStats.learning,
+      due: noteStats.due,
+      total: noteStats.total,
+      queue: queue.length,
+    },
     cardTypes,
     templates,
     cards: queue.map(({ srs, cardType, cardTypeLabel, ...card }) => ({

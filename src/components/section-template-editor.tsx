@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { renderCardTemplate, toCardFields } from "@/lib/card-template";
+import { renderCardTemplate, toCardFields, fillStudyMarkersForPreview } from "@/lib/card-template";
 import { getSectionPreset } from "@/lib/section-presets";
 import {
   presetTemplatesForSection,
@@ -61,8 +61,8 @@ export function SectionTemplateEditor({ sectionId, label, onClose }: Props) {
 
   const sampleCard = sampleCardForSection(sectionId);
   const fields = toCardFields(sampleCard);
-  const previewFront = renderCardTemplate(frontTemplate, fields, "front");
-  const previewBack = renderCardTemplate(backTemplate, fields, "back");
+  const previewFront = fillStudyMarkersForPreview(renderCardTemplate(frontTemplate, fields, "front"));
+  const previewBack = fillStudyMarkersForPreview(renderCardTemplate(backTemplate, fields, "back"));
 
   const save = async () => {
     const res = await fetch("/api/admin/section-templates", {
@@ -125,6 +125,14 @@ export function SectionTemplateEditor({ sectionId, label, onClose }: Props) {
               ))}
               {fieldNames.length > 6 && "…"} · Khối tuỳ chọn:{" "}
               <code className="text-xs bg-stone-100 px-1">{`{{#Trường}}...{{/Trường}}`}</code>
+              {" · "}Ô gõ: <code className="text-xs bg-stone-100 px-1">{`{{GÕ CHỮ}}`}</code>
+              {" · "}Gợi ý: <code className="text-xs bg-stone-100 px-1">{`{{GỢI Ý}}`}</code>
+              {sectionId === "sentence_order" && (
+                <>
+                  {" · "}Ghép: <code className="text-xs bg-stone-100 px-1">{`{{GHÉP CÂU}}`}</code>
+                  {" · "}Ô đáp án: <code className="text-xs bg-stone-100 px-1">{`{{Ô ĐÁP ÁN}}`}</code>
+                </>
+              )}
             </p>
 
             <div className="flex gap-2 text-sm flex-wrap">
@@ -212,6 +220,16 @@ export function SectionTemplateEditor({ sectionId, label, onClose }: Props) {
                     className="w-full border rounded-lg px-3 py-2"
                     value={studyOptions.hintLabel ?? "Gợi ý"}
                     onChange={(e) => setStudyOptions((o) => ({ ...o, hintLabel: e.target.value }))}
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="font-medium">Chữ trong ô gõ (placeholder)</span>
+                  <input
+                    type="text"
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={studyOptions.inputPlaceholder ?? ""}
+                    onChange={(e) => setStudyOptions((o) => ({ ...o, inputPlaceholder: e.target.value }))}
+                    placeholder="Gõ chữ Hán..."
                   />
                 </label>
               </div>
