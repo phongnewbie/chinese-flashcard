@@ -377,7 +377,7 @@ export function toCardFields(
     front: string;
     back: string;
     pinyin: string | null;
-    audioUrl: string | null;
+    audioUrl?: string | null;
     section?: string;
     extraFields?: string | null;
   },
