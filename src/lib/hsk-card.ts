@@ -111,6 +111,7 @@ export function toHskCardView(card: {
   pinyin: string | null;
   audioUrl: string | null;
   extraFields: string | null;
+  section?: string;
   cardType?: string;
   cardTypeLabel?: string;
   srs: { isNew?: boolean; intervalDays?: number; learningStep?: number };
@@ -145,15 +146,22 @@ export function toHskCardView(card: {
   const rawMainAudio = card.audioUrl?.trim() || pickExtra(extras, AUDIO_KEYS) || "";
   const exampleAudioUrl = rawExAudio ? resolveSoundPlayUrl(rawExAudio) : "";
 
+  let chineseText = card.front.trim();
+  let vietnameseText = card.back.trim();
+  if (card.section === "common" || (!/[\u4e00-\u9fa5]/.test(chineseText) && /[\u4e00-\u9fa5]/.test(vietnameseText))) {
+    chineseText = card.back.trim();
+    vietnameseText = card.front.trim();
+  }
+
   const cardType = card.cardType ?? "viet_trung";
-  let prompt = card.back.trim();
-  let answer = card.front.trim();
+  let prompt = vietnameseText;
+  let answer = chineseText;
   if (cardType === "trung_viet") {
-    prompt = card.front.trim();
-    answer = card.back.trim();
+    prompt = chineseText;
+    answer = vietnameseText;
   } else if (cardType === "card_3") {
-    prompt = card.pinyin?.trim() || card.back.trim();
-    answer = card.front.trim();
+    prompt = card.pinyin?.trim() || vietnameseText;
+    answer = chineseText;
   }
 
   return {

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { AnkiStudy } from "@/components/anki-study";
 import { HskVocabStudy } from "@/components/hsk-vocab-study";
 import { SentenceOrderStudy } from "@/components/sentence-order-study";
 import { isAccessLocked, LockScreen, TrialBanner, useAccess } from "@/components/access-ui";
@@ -67,19 +66,11 @@ export function StudyClient({ courseId, title, primarySection, hskLevel }: Props
 
       {activeSection === "sentence_order" ? (
         <SentenceOrderStudy courseId={courseId} mode={mode} onModeChange={setMode} />
-      ) : activeSection === "vocabulary" ? (
+      ) : (
         <HskVocabStudy
           key={`${activeSection}-${mode}`}
           courseId={courseId}
-          section={activeSection}
-          mode={mode}
-          onModeChange={setMode}
-        />
-      ) : (
-        <AnkiStudy
-          key={`${activeSection}-${mode}`}
-          courseId={courseId}
-          section={activeSection}
+          section={activeSection as "vocabulary" | "grammar" | "common"}
           mode={mode}
           onModeChange={setMode}
         />

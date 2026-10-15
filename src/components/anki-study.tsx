@@ -27,12 +27,12 @@ import {
 } from "@/lib/card-template";
 import type { CardTypeDef } from "@/lib/card-types";
 import { StudyHintBar } from "@/components/study-hint-bar";
-import { playAudioOrTts, playAudioSequence, resolveSoundPlayUrl, stopStudyAudio } from "@/lib/anki-sound";
+import { playAudioOrTts, playAudioSequence, playableAudioSrc, stopStudyAudio, stripSpeakText } from "@/lib/anki-sound";
+import { parseExample } from "@/lib/hsk-card";
 import { sectionLabel, type StudySectionId } from "@/lib/sections";
 import { presetTemplatesForSection, type SectionStudyOptions } from "@/lib/section-templates";
 import { previewIntervals, type ReviewState } from "@/lib/srs";
 import { hintLinesFromFields, resolveStudyOptions } from "@/lib/study-options";
-import { parseExample } from "@/lib/hsk-card";
 
 
 
@@ -125,6 +125,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
   const studyRef = useRef<HTMLDivElement>(null);
   const ratingLockRef = useRef(false);
   const audioGenRef = useRef(0);
+  const audioTimerRef = useRef<number | null>(null);
 
   const onStatsRef = useRef(onStats);
   const rateRef = useRef<(rating: 1 | 2 | 3 | 4) => Promise<void>>(async () => {});
@@ -301,18 +302,19 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
 
 
   const playAudio = useCallback((url?: string | null, textFallback?: string | null, lang = "zh-CN") => {
-    const fallback =
-      textFallback ||
-      fields?.["Tiếng Trung"] ||
-      fields?.["CHỮ HÁN"] ||
-      fields?.["CẤU TRÚC"] ||
-      fields?.["CÂU ĐÚNG"] ||
-      fields?.["CÂU TRẢ LỜI"] ||
-      fields?.["Front"] ||
-      current?.front ||
-      "";
+    let fallback = textFallback;
+    if (!fallback && lang.startsWith("zh")) {
+      fallback =
+        fields?.["CHỮ HÁN"] ||
+        fields?.["CÂU TRẢ LỜI"] ||
+        fields?.["Tiếng Trung"] ||
+        fields?.["CÂU ĐÚNG"] ||
+        (current?.front && /[\u4e00-\u9fa5]/.test(current.front) ? current.front : "") ||
+        (current?.back && /[\u4e00-\u9fa5]/.test(current.back) ? current.back : "") ||
+        "";
+    }
     void playAudioOrTts(url, fallback, lang);
-  }, [fields, current?.front]);
+  }, [fields, current?.front, current?.back]);
 
   const playFlipAudio = useCallback(() => {
     if (!fields || !current) return;
@@ -323,13 +325,19 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
       if (gen !== audioGenRef.current) return;
       const audioUrl = fields["ÂM THANH"] || fields.Audio || current.audioUrl || null;
       if (section === "grammar") {
-        const cn = fields["CHỮ HÁN"] || fields["Tiếng Trung"] || fields.Front || current.front || "";
-        playAudio(audioUrl, cn, "zh-CN");
+        const cn =
+          fields["CHỮ HÁN"] ||
+          fields["Tiếng Trung"] ||
+          (current.front && /[\u4e00-\u9fa5]/.test(current.front) ? current.front : "");
+        if (audioUrl || cn) playAudio(audioUrl, cn, "zh-CN");
         return;
       }
       if (section === "common") {
-        const cn = fields["CÂU TRẢ LỜI"] || fields["Tiếng Trung"] || fields.Back || current.back || "";
-        playAudio(audioUrl, cn, "zh-CN");
+        const cn =
+          fields["CÂU TRẢ LỜI"] ||
+          fields["Tiếng Trung"] ||
+          (current.back && /[\u4e00-\u9fa5]/.test(current.back) ? current.back : "");
+        if (audioUrl || cn) playAudio(audioUrl, cn, "zh-CN");
         return;
       }
       if (studyOptions.audioExampleOnReveal !== false) {
@@ -356,25 +364,6 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
     playFlipAudio();
     focusStudy();
   }, [playFlipAudio]);
-
-  useEffect(() => {
-    if (phase !== "study" || !current || !fields || flipped) return;
-    if (section !== "grammar") return;
-    const delay = studyOptions.audioDelayMs ?? 0;
-    const gen = ++audioGenRef.current;
-    const run = () => {
-      if (gen !== audioGenRef.current) return;
-      const vi =
-        fields["NGHĨA TIẾNG VIỆT"] ||
-        fields["Nghĩa tiếng Việt"] ||
-        fields.Back ||
-        current.back ||
-        "";
-      playAudio(null, vi, "vi-VN");
-    };
-    if (delay > 0) window.setTimeout(run, delay);
-    else run();
-  }, [phase, section, index, current?.id, flipped, fields, studyOptions.audioDelayMs, playAudio]);
 
   const rate = useCallback(async (rating: 1 | 2 | 3 | 4) => {
 
@@ -612,7 +601,7 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
       ref={studyRef}
       tabIndex={-1}
       className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none flex flex-col justify-between"
-      style={{ height: 730, minHeight: 730, maxHeight: 730 }}
+      style={{ height: 740, minHeight: 740, maxHeight: 740, width: "100%", maxWidth: "58rem" }}
     >
       <div className="relative px-4 pt-5 pb-2 shrink-0">
         <div className="hsk-header-pill mx-auto max-w-md text-center py-2.5 px-6">
@@ -645,21 +634,23 @@ export function AnkiStudy({ courseId, section, mode, onModeChange, onStats }: Pr
             className="anki-card-content flex-1 min-h-0 w-full text-left overflow-y-auto"
             dangerouslySetInnerHTML={{ __html: html }}
           />
+          {!flipped && hintLines.length > 0 && (
+            <div className="pt-2 shrink-0">
+              <StudyHintBar
+                hints={hintLines}
+                label={studyOptions.hintLabel}
+                visible={hintVisible}
+                onToggle={() => setHintVisible((v) => !v)}
+              />
+            </div>
+          )}
         </div>
       </div>
 
-      {!flipped && hintLines.length > 0 && (
-        <div className="px-4 pb-2 shrink-0">
-          <StudyHintBar
-            hints={hintLines}
-            label={studyOptions.hintLabel}
-            visible={hintVisible}
-            onToggle={() => setHintVisible((v) => !v)}
-          />
-        </div>
-      )}
-
-      <div className="study-action-bar shrink-0 px-4 pb-5 space-y-3">
+      <div
+        className="study-action-bar shrink-0 px-4 pb-5 space-y-3 flex flex-col justify-center"
+        style={{ height: 110, minHeight: 110, maxHeight: 110 }}
+      >
 
         {!flipped ? (
 

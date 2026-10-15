@@ -13,11 +13,11 @@ export function defaultStudyOptionsForSection(section: string): SectionStudyOpti
     case "grammar":
       return {
         audioDelayMs: 200,
-        audioWordFirst: false,
+        audioWordFirst: true,
         audioExampleOnReveal: true,
-        hintFields: "CẤU TRÚC,CÁCH DÙNG",
+        hintFields: "CẤU TRÚC,ĐIỂM NGỮ PHÁP",
         hintLabel: "Gợi ý",
-        inputPlaceholder: "Gõ nghĩa tiếng Việt...",
+        inputPlaceholder: "Gõ câu tiếng Trung...",
       };
     case "vocabulary":
       return {

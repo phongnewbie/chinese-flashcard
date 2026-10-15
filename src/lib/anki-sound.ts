@@ -31,7 +31,7 @@ export function isPlayableAudio(val: string): boolean {
   if (/^\[sound:/i.test(v)) return true;
   if (/^https?:\/\//i.test(v)) return true;
   if (v.startsWith("//")) return true;
-  if (v.startsWith("/uploads/") || v.startsWith("/")) return true;
+  if (v.startsWith("/uploads/")) return true;
   if (/^[a-z0-9.-]+\.[a-z]{2,}\/\S+/i.test(v) && /\.(mp3|wav|ogg|m4a|webm|aac|flac)/i.test(v)) return true;
   return /\.(mp3|wav|ogg|m4a|webm|aac|flac)(\?|#|$)/i.test(v);
 }
@@ -65,6 +65,40 @@ function audioButtonHtml(url: string, text = ""): string {
   return `<button type="button" class="audio-btn" data-audio="${escapeHtml(resolved)}"${dataText} title="Nghe">🔊 Nghe</button>`;
 }
 
+/** Lọc lấy câu tiếng Trung chuẩn để phát TTS — bỏ pinyin, tiếng Việt và mã thừa */
+export function cleanChineseTtsText(raw?: string | null): string {
+  if (!raw?.trim()) return "";
+  let text = raw
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\[sound:[^\]]+\]/gi, " ")
+    .replace(/https?:\/\/\S+/gi, " ")
+    .trim();
+
+  // Dạng slash: "她在看书 / tā zài kànshū / Cô ấy đang đọc sách"
+  if (text.includes("/")) {
+    const parts = text.split("/").map((p) => p.trim());
+    const cnPart = parts.find((p) => /[\u4e00-\u9fa5]/.test(p));
+    if (cnPart) text = cnPart;
+  }
+
+  // Dạng nhiều dòng: lấy dòng đầu có chữ Hán
+  if (text.includes("\n")) {
+    const lines = text.split(/\r?\n/).map((l) => l.trim());
+    const cnLine = lines.find((l) => /[\u4e00-\u9fa5]/.test(l));
+    if (cnLine) text = cnLine;
+  }
+
+  // Loại bỏ các tiền tố mã thẻ ví dụ: "NP1: ", "MÃ: NP1", "1. "
+  text = text.replace(/^(?:MÃ|MA|STT|NP\d+|[A-Z0-9_-]+)[:：\s]+/gi, "").trim();
+
+  // Nếu không chứa ký tự chữ Hán, không phát âm tiếng Trung
+  if (!/[\u4e00-\u9fa5]/.test(text)) {
+    return "";
+  }
+
+  return text;
+}
+
 /** Phát âm thanh qua Web Speech API tiếng Trung */
 export function playSpeechTts(text: string, lang = "zh-CN"): Promise<void> {
   return new Promise((resolve) => {
@@ -73,7 +107,10 @@ export function playSpeechTts(text: string, lang = "zh-CN"): Promise<void> {
       return;
     }
     try {
-      const clean = text.replace(/<[^>]+>/g, "").trim();
+      let clean = text.replace(/<[^>]+>/g, "").trim();
+      if (lang.startsWith("zh")) {
+        clean = cleanChineseTtsText(clean);
+      }
       if (!clean) {
         resolve();
         return;
@@ -81,6 +118,16 @@ export function playSpeechTts(text: string, lang = "zh-CN"): Promise<void> {
       const utterance = new SpeechSynthesisUtterance(clean);
       utterance.lang = lang;
       utterance.rate = 0.85;
+
+      // Chọn voice tiếng Trung chuẩn nếu có
+      if (lang.startsWith("zh")) {
+        const voices = window.speechSynthesis.getVoices();
+        const zhVoice = voices.find(
+          (v) => v.lang.replace("_", "-").toLowerCase().startsWith("zh") || v.name.includes("Chinese"),
+        );
+        if (zhVoice) utterance.voice = zhVoice;
+      }
+
       utterance.onend = () => resolve();
       utterance.onerror = () => resolve();
       window.speechSynthesis.cancel();
@@ -97,6 +144,24 @@ export function playSpeechTts(text: string, lang = "zh-CN"): Promise<void> {
       resolve();
     }
   });
+}
+
+export function stripSpeakText(raw?: string | null): string {
+  return (raw ?? "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\[sound:[^\]]+\]/gi, " ")
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Chỉ trả URL khi đúng là file/link nghe được — tránh TTS lệch vì nhầm URL */
+export function playableAudioSrc(raw?: string | null): string | null {
+  if (!raw?.trim()) return null;
+  const cleaned = stripSpeakText(raw) || raw.trim();
+  const candidate = isPlayableAudio(raw.trim()) ? raw.trim() : isPlayableAudio(cleaned) ? cleaned : "";
+  if (!candidate) return null;
+  return resolveSoundPlayUrl(candidate);
 }
 
 export type AudioPlayItem = {
@@ -117,7 +182,9 @@ export function playAudioOrTts(
       return;
     }
 
-    const cleanText = (fallbackText ?? "").replace(/<[^>]+>/g, "").trim();
+    const cleanText = lang.startsWith("zh")
+      ? cleanChineseTtsText(fallbackText)
+      : (fallbackText ?? "").replace(/<[^>]+>/g, "").trim();
 
     if (audioUrl && audioUrl.trim()) {
       const src = resolveSoundPlayUrl(audioUrl);

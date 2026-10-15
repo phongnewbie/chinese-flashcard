@@ -41,9 +41,9 @@ const SECTION_UI: Record<
   },
   grammar: {
     defaultTitle: "NGỮ PHÁP",
-    placeholder: "Gõ nghĩa tiếng Việt...",
-    inputLang: "vi",
-    showHanzii: false,
+    placeholder: "Gõ câu tiếng Trung...",
+    inputLang: "zh-CN",
+    showHanzii: true,
     badge: () => "NGỮ PHÁP",
   },
   common: {
@@ -406,6 +406,7 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
       ref={shellRef}
       tabIndex={-1}
       className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden outline-none shrink-0 flex flex-col justify-between"
+      style={{ height: 740, minHeight: 740, maxHeight: 740, width: "100%", maxWidth: "58rem" }}
       onPointerDown={(e) => {
         if (!revealed && e.target === shellRef.current) {
           focusAnswerInput();
@@ -510,7 +511,10 @@ export function HskVocabStudy({ courseId, section, mode, onModeChange, onStats }
       </div>
 
       {/* Nút hành động — vùng cao cố định */}
-      <div className="study-action-bar shrink-0 px-4 pb-5 space-y-2">
+      <div
+        className="study-action-bar shrink-0 px-4 pb-5 space-y-2 flex flex-col justify-center"
+        style={{ height: 110, minHeight: 110, maxHeight: 110 }}
+      >
         {!revealed ? (
           <div className="flex justify-center">
             <button type="button" onClick={showAnswer} className="hsk-show-btn px-10 py-2.5 text-base">

@@ -190,10 +190,11 @@ function fieldToHtml(key: string, val: string, side: "front" | "back", fieldsCon
   const k = key.toLowerCase();
   const trimmed = val.trim();
   const chineseText =
+    fieldsContext?.["CHỮ HÁN"] ||
+    fieldsContext?.["CÂU TRẢ LỜI"] ||
     fieldsContext?.["Tiếng Trung"] ||
-    fieldsContext?.["CẤU TRÚC"] ||
-    fieldsContext?.["Front"] ||
     fieldsContext?.["CÂU ĐÚNG"] ||
+    fieldsContext?.["Front"] ||
     "";
 
   if (looksLikeImageValue(trimmed) || isImageFieldKey(k)) {
@@ -377,7 +378,7 @@ export function toCardFields(
     front: string;
     back: string;
     pinyin: string | null;
-    audioUrl?: string | null;
+    audioUrl: string | null;
     section?: string;
     extraFields?: string | null;
   },

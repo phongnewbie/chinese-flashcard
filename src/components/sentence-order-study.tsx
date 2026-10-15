@@ -94,12 +94,15 @@ export function SentenceOrderStudy({
   const [picked, setPicked] = useState<string[]>([]);
   const [checked, setChecked] = useState<"idle" | "ok" | "fail">("idle");
 
+  const [hintOpen, setHintOpen] = useState(false);
+
   const resetRound = useCallback(
     (shuffled?: string[]) => {
       const base = shuffled ?? [...parts].sort(() => Math.random() - 0.5);
       setPool(base);
       setPicked([]);
       setChecked("idle");
+      setHintOpen(false);
     },
     [parts],
   );
@@ -108,18 +111,41 @@ export function SentenceOrderStudy({
     if (current) resetRound();
   }, [current?.id, resetRound]);
 
-  useEffect(() => {
-    if (phase !== "study" || !current) return;
+  const playSentenceAudio = useCallback(() => {
+    if (!current) return;
     const chinese = (current.back.split("\n")[0] ?? current.back).trim();
     if (!chinese) return;
     void playAudioOrTts(current.audioUrl, chinese, "zh-CN");
-  }, [phase, current?.id, current?.back, current?.audioUrl]);
+  }, [current]);
+
+  useEffect(() => {
+    if (phase !== "study" || !current) return;
+    playSentenceAudio();
+  }, [phase, current?.id, playSentenceAudio]);
 
   const activeTemplates = templates ?? presetTemplatesForSection("sentence_order");
   const fields = useMemo(
-    () => (current ? toCardFields({ ...current, section: "sentence_order" }) : null),
+    () => (current ? toCardFields({ ...current, section: "sentence_order", audioUrl: current.audioUrl ?? null }) : null),
     [current],
   );
+
+  const grammarStructure = useMemo(() => {
+    if (!fields) return "";
+    return (
+      fields["CẤU TRÚC NGỮ PHÁP"] ||
+      fields["CẤU TRÚC"] ||
+      fields["Cấu trúc ngữ pháp"] ||
+      fields["Cấu trúc"] ||
+      fields["ĐIỂM NGỮ PHÁP"] ||
+      fields["Điểm ngữ pháp"] ||
+      fields["GHI CHÚ"] ||
+      fields["Ghi chú"] ||
+      fields["NGHĨA"] ||
+      fields["Nghĩa"] ||
+      ""
+    );
+  }, [fields]);
+
   const frontHtml = useMemo(() => {
     if (!fields) return "";
     return renderCardTemplate(activeTemplates.frontTemplate, fields, "front");
@@ -202,6 +228,7 @@ export function SentenceOrderStudy({
   };
 
   const next = () => {
+    setHintOpen(false);
     setSessionCount((n) => n + 1);
     if (index + 1 >= cards.length) {
       setPhase("finished");
@@ -249,7 +276,10 @@ export function SentenceOrderStudy({
     htmlHasSlot(frontHtml, "STUDY_PIECES") || htmlHasSlot(frontHtml, "STUDY_ANSWER_BOX");
 
   return (
-    <div className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden flex flex-col justify-between">
+    <div
+      className="hsk-screen hsk-study-shell rounded-2xl overflow-hidden flex flex-col justify-between"
+      style={{ height: 740, minHeight: 740, maxHeight: 740, width: "100%", maxWidth: "58rem" }}
+    >
       <div className="relative px-4 pt-5 pb-2 shrink-0">
         <div className="hsk-header-pill mx-auto max-w-md text-center py-2.5 px-6">{title}</div>
       </div>
@@ -260,10 +290,10 @@ export function SentenceOrderStudy({
       <div className="mx-4 shrink-0 flex justify-center">
         <style>{activeTemplates.cardCss}</style>
         <div
-          className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-4 md:p-5 shadow-sm flex flex-col w-full max-w-[48rem] h-[520px] min-h-[520px] max-h-[520px] mx-auto overflow-hidden"
-          style={{ height: 520, minHeight: 520, maxHeight: 520 }}
+          className="study-card-panel rounded-2xl border-2 border-[#8fad8f] bg-white p-4 md:p-5 shadow-sm flex flex-col w-full max-w-[48rem] h-[520px] min-h-[520px] max-h-[520px] mx-auto overflow-hidden shrink-0"
+          style={{ height: 520, minHeight: 520, maxHeight: 520, width: "100%", maxWidth: "48rem" }}
         >
-          <div className="anki-card-content flex-1 min-h-0 w-full text-left overflow-y-auto">
+          <div className="anki-card-content flex-1 min-h-0 w-full text-left overflow-y-auto space-y-3">
             {checked !== "idle" ? (
               <div dangerouslySetInnerHTML={{ __html: backHtml }} />
             ) : showTemplateSlots ? (
@@ -280,24 +310,60 @@ export function SentenceOrderStudy({
                 {pieces}
               </div>
             )}
+
+            {/* Khối gợi ý cấu trúc ngữ pháp khi bấm nút Gợi ý */}
+            {hintOpen && (
+              <div className="mx-auto max-w-lg w-full rounded-xl bg-amber-50 border border-amber-300 p-3.5 text-center shadow-sm animate-fadeIn">
+                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide">💡 Cấu trúc ngữ pháp</p>
+                <p className="text-sm text-stone-800 mt-1 font-medium leading-relaxed">
+                  {grammarStructure || "Không có thông tin cấu trúc cho câu này"}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {checked === "ok" && (
-        <p className="text-center text-emerald-700 font-medium px-4">Đúng rồi!</p>
-      )}
-      {checked === "fail" && (
-        <p className="text-center text-red-700 text-sm px-4">
-          Chưa đúng. Đáp án: <strong>{current.back.split("\n")[0]}</strong>
-        </p>
-      )}
+      {/* Vùng trạng thái kết quả có chiều cao cố định */}
+      <div className="h-6 shrink-0 flex items-center justify-center px-4">
+        {checked === "ok" && (
+          <p className="text-center text-emerald-700 font-semibold text-sm">✓ Đúng rồi!</p>
+        )}
+        {checked === "fail" && (
+          <p className="text-center text-red-700 text-sm font-medium">
+            Chưa đúng. Đáp án: <strong>{current.back.split("\n")[0]}</strong>
+          </p>
+        )}
+      </div>
 
-      <div className="study-action-bar shrink-0 px-4 pb-5 flex flex-wrap gap-3 justify-center">
+      <div
+        className="study-action-bar shrink-0 px-4 pb-5 flex flex-wrap gap-2.5 justify-center items-center"
+        style={{ height: 110, minHeight: 110, maxHeight: 110 }}
+      >
+        <button
+          type="button"
+          onClick={playSentenceAudio}
+          className="rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 px-4 py-2.5 text-sm font-medium hover:bg-emerald-100 flex items-center gap-1.5 transition shadow-sm"
+          title="Nghe phát âm câu tiếng Trung"
+        >
+          <span>🔊</span> Âm thanh
+        </button>
+        <button
+          type="button"
+          onClick={() => setHintOpen((prev) => !prev)}
+          className={`rounded-xl border px-4 py-2.5 text-sm font-medium flex items-center gap-1.5 transition shadow-sm ${
+            hintOpen
+              ? "border-amber-400 bg-amber-100 text-amber-900"
+              : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
+          }`}
+          title="Xem gợi ý cấu trúc ngữ pháp"
+        >
+          <span>💡</span> Gợi ý
+        </button>
         <button
           type="button"
           onClick={() => resetRound()}
-          className="rounded-xl border border-stone-200 px-5 py-2.5 hover:bg-stone-50"
+          className="rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm hover:bg-stone-50 text-stone-700 transition"
         >
           Trộn lại
         </button>
@@ -305,7 +371,7 @@ export function SentenceOrderStudy({
           type="button"
           onClick={() => void check()}
           disabled={picked.length === 0 || checked !== "idle"}
-          className="rounded-xl bg-stone-900 px-5 py-2.5 text-white hover:bg-stone-800 disabled:opacity-40"
+          className="rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-40 transition shadow-sm"
         >
           Kiểm tra
         </button>
@@ -313,7 +379,7 @@ export function SentenceOrderStudy({
           <button
             type="button"
             onClick={next}
-            className="rounded-xl bg-emerald-600 px-5 py-2.5 text-white hover:bg-emerald-700"
+            className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 transition shadow-sm"
           >
             Câu sau →
           </button>

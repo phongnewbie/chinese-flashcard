@@ -191,21 +191,25 @@ const GRAMMAR_PRESET: SectionPreset = {
     field("ÂM THANH", { description: "Link mp3 hoặc [sound:ten-file.mp3]" }),
   ],
   frontTemplate: `<div class="card front">
-  <div class="answer-cn">{{CHỮ HÁN}}</div>
-  {{#PINYIN}}<div class="pinyin">{{PINYIN}}</div>{{/PINYIN}}
-  {{#ÂM THANH}}<div class="card-audio">{{ÂM THANH}}</div>{{/ÂM THANH}}
-  <p class="hint">Enter / Space — lật thẻ</p>
-</div>`,
-  backTemplate: `<div class="card back">
   <div class="meaning">{{NGHĨA TIẾNG VIỆT}}</div>
   {{#PINYIN}}<div class="pinyin">{{PINYIN}}</div>{{/PINYIN}}
+  {{GỢI Ý}}
+  {{GÕ CHỮ}}
+</div>`,
+  backTemplate: `<div class="card back">
+  <div class="hanzi">{{CHỮ HÁN}}</div>
+  {{#PINYIN}}<div class="pinyin">{{PINYIN}}</div>{{/PINYIN}}
+  <div class="meaning">{{NGHĨA TIẾNG VIỆT}}</div>
   {{#CẤU TRÚC}}<div class="example"><strong>Cấu trúc:</strong> {{CẤU TRÚC}}</div>{{/CẤU TRÚC}}
   {{#CÁCH DÙNG}}<div class="note"><strong>Cách dùng:</strong> {{CÁCH DÙNG}}</div>{{/CÁCH DÙNG}}
   {{#ĐIỂM NGỮ PHÁP}}<div class="note"><strong>Điểm ngữ pháp:</strong> {{ĐIỂM NGỮ PHÁP}}</div>{{/ĐIỂM NGỮ PHÁP}}
   {{#ÂM THANH}}<div class="card-audio">{{ÂM THANH}}</div>{{/ÂM THANH}}
 </div>`,
   cardCss: BASE_CARD_CSS,
-  cardTypes: [{ id: "trung_viet", label: "Trung → Việt", ord: 0 }],
+  cardTypes: [
+    { id: "viet_trung", label: "Việt → Trung", ord: 0 },
+    { id: "trung_viet", label: "Trung → Việt", ord: 1 },
+  ],
 };
 
 /** Sắp xếp câu */
@@ -251,17 +255,20 @@ const COMMON_PRESET: SectionPreset = {
     field("ÂM THANH"),
   ],
   frontTemplate: `<div class="card front">
-  <div class="explain">{{Front}}</div>
+  <div class="meaning">{{TÌNH HUỐNG}}</div>
   {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
-  {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
-  <p class="hint">Enter / Space — lật thẻ</p>
+  {{GỢI Ý}}
+  {{GÕ CHỮ}}
 </div>`,
   backTemplate: `<div class="card back">
-  <div class="answer-cn">{{Back}}</div>
+  <div class="hanzi">{{CÂU TRẢ LỜI}}</div>
+  {{#PINYIN}}<div class="pinyin">{{PINYIN}}</div>{{/PINYIN}}
   {{#Pinyin}}<div class="pinyin">{{Pinyin}}</div>{{/Pinyin}}
+  <div class="meaning">{{TÌNH HUỐNG}}</div>
   {{#ẢNH}}<div class="card-image">{{ẢNH}}</div>{{/ẢNH}}
   {{#VÍ DỤ}}<div class="example"><strong>Ví dụ:</strong><br>{{VÍ DỤ}}</div>{{/VÍ DỤ}}
   {{#GHI CHÚ}}<div class="note">{{GHI CHÚ}}</div>{{/GHI CHÚ}}
+  {{#ÂM THANH}}<div class="card-audio">{{ÂM THANH}}</div>{{/ÂM THANH}}
   {{#Audio}}<div class="card-audio">{{Audio}}</div>{{/Audio}}
 </div>`,
   cardCss: BASE_CARD_CSS,

@@ -171,9 +171,9 @@ body {
 /* HSK vocabulary — giao diện giống Anki */
 .hsk-screen {
   background: linear-gradient(180deg, #c5c5c5 0%, #d8d8d8 100%);
-  height: 730px !important;
-  min-height: 730px !important;
-  max-height: 730px !important;
+  height: 740px !important;
+  min-height: 740px !important;
+  max-height: 740px !important;
   display: flex !important;
   flex-direction: column !important;
   justify-content: space-between !important;
@@ -184,9 +184,9 @@ body {
 
 @media (max-width: 640px) {
   .hsk-screen {
-    height: 700px !important;
-    min-height: 700px !important;
-    max-height: 700px !important;
+    height: 720px !important;
+    min-height: 720px !important;
+    max-height: 720px !important;
   }
 }
 
@@ -197,8 +197,10 @@ body {
   margin-right: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  justify-content: space-between !important;
+  gap: 0 !important;
   box-sizing: border-box;
+  height: 100% !important;
 }
 
 /* Thẻ học — kích thước cố định tuyệt đối, không co giãn khi lật thẻ */
@@ -230,9 +232,9 @@ body {
 }
 
 .study-action-bar {
-  min-height: 7.5rem !important;
-  height: 7.5rem !important;
-  max-height: 7.5rem !important;
+  min-height: 110px !important;
+  height: 110px !important;
+  max-height: 110px !important;
   flex-shrink: 0 !important;
   display: flex !important;
   flex-direction: column !important;
@@ -243,9 +245,9 @@ body {
 
 @media (max-width: 640px) {
   .study-action-bar {
-    min-height: 10rem !important;
-    height: 10rem !important;
-    max-height: 10rem !important;
+    min-height: 140px !important;
+    height: 140px !important;
+    max-height: 140px !important;
   }
 }
 
@@ -308,14 +310,14 @@ body {
 
 .anki-card-content .card {
   width: 100% !important;
-  min-height: 100%;
-  margin: auto 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  margin: 0 !important;
   box-sizing: border-box !important;
   padding: 1rem 1.25rem !important;
   display: flex !important;
   flex-direction: column !important;
-  justify-content: center !important;
-  justify-content: safe center !important;
+  justify-content: flex-start !important;
   align-items: center !important;
 }
 
